@@ -32,12 +32,21 @@ namespace gps_viewer
 
     public class GetGps : BackgroundService
     {
+        //private static string serial = "/dev/ttymxc1";
+        private static string serial = "/dev/ttyUSB0";
         public static GpsPosition current;
-        private static SerialPort port = new SerialPort("/dev/ttymxc1", 9600, Parity.None, 8, StopBits.One);
+        private static SerialPort port = new SerialPort(serial, 9600, Parity.None, 8, StopBits.One);
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            port.DataReceived += new SerialDataReceivedEventHandler(port_DataReceived);
-            port.Open();
+            try
+            {
+                port.DataReceived += new SerialDataReceivedEventHandler(port_DataReceived);
+                port.Open();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
         }
 
         private static void port_DataReceived(object sender, SerialDataReceivedEventArgs e)
