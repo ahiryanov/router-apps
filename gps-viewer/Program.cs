@@ -32,16 +32,48 @@ namespace gps_viewer
 
     public class GetGps : BackgroundService
     {
-        //private static string serial = "/dev/ttymxc1";
-        private static string serial = "/dev/ttyUSB0";
+        //private static string[] serials = { "/dev/ttymxc1" };
+        private static string[] serials = { "/dev/ttyUSB0", "/dev/ttyUSB1" };
         public static GpsPosition current;
-        private static SerialPort port = new SerialPort(serial, 9600, Parity.None, 8, StopBits.One);
+        public static SerialPort port;
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            int i = 0;
+            string read = null;
+            do
+            {
+                try
+                {
+                    port = new SerialPort(serials[i], 9600, Parity.None, 8, StopBits.One);
+                    port.Open();
+                    port.ReadTimeout = 1000;
+                    read = port.ReadLine();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.Message);
+                }
+                await Task.Delay(1000);
+                
+                if (read != null)
+                {
+                    Console.WriteLine($"Serial {serials[i]} is OK. Continue");
+                    break;
+                }
+                Console.WriteLine($"Serial {serials[i]} unreadable. Trying next.");
+                port.Close();
+
+                i++;
+                if (i >= serials.Length)
+                {
+                    i = 0;
+                    await Task.Delay(100000);
+                }
+            } while (true);
+
             try
             {
                 port.DataReceived += new SerialDataReceivedEventHandler(port_DataReceived);
-                port.Open();
             }
             catch (Exception ex)
             {
@@ -52,6 +84,8 @@ namespace gps_viewer
         private static void port_DataReceived(object sender, SerialDataReceivedEventArgs e)
         {
             string line = port.ReadLine();
+            
+                
             if (line.Contains("GPRMC") || line.Contains("GNRMC"))
             {
                 string[] lines = line.Split(',');
