@@ -420,12 +420,36 @@ namespace NetworkManager.DBus
         public static Task SetGlobalDnsConfigurationAsync(this INetworkManager o, IDictionary<string, object> val) => o.SetAsync("GlobalDnsConfiguration", val);
     }
 
-    [DBusInterface("org.freedesktop.NetworkManager.AgentManager")]
-    interface IAgentManager : IDBusObject
+    [DBusInterface("org.freedesktop.NetworkManager.DHCP4Config")]
+    interface IDHCP4Config : IDBusObject
     {
-        Task RegisterAsync(string Identifier);
-        Task RegisterWithCapabilitiesAsync(string Identifier, uint Capabilities);
-        Task UnregisterAsync();
+        Task<T> GetAsync<T>(string prop);
+        Task<DHCP4ConfigProperties> GetAllAsync();
+        Task SetAsync(string prop, object val);
+        Task<IDisposable> WatchPropertiesAsync(Action<PropertyChanges> handler);
+    }
+
+    [Dictionary]
+    class DHCP4ConfigProperties
+    {
+        private IDictionary<string, object> _Options = default(IDictionary<string, object>);
+        public IDictionary<string, object> Options
+        {
+            get
+            {
+                return _Options;
+            }
+
+            set
+            {
+                _Options = (value);
+            }
+        }
+    }
+
+    static class DHCP4ConfigExtensions
+    {
+        public static Task<IDictionary<string, object>> GetOptionsAsync(this IDHCP4Config o) => o.GetAsync<IDictionary<string, object>>("Options");
     }
 
     [DBusInterface("org.freedesktop.NetworkManager.IP4Config")]
@@ -898,98 +922,12 @@ namespace NetworkManager.DBus
         public static Task<ObjectPath> GetMasterAsync(this IActive o) => o.GetAsync<ObjectPath>("Master");
     }
 
-    [DBusInterface("org.freedesktop.NetworkManager.DnsManager")]
-    interface IDnsManager : IDBusObject
+    [DBusInterface("org.freedesktop.NetworkManager.AgentManager")]
+    interface IAgentManager : IDBusObject
     {
-        Task<T> GetAsync<T>(string prop);
-        Task<DnsManagerProperties> GetAllAsync();
-        Task SetAsync(string prop, object val);
-        Task<IDisposable> WatchPropertiesAsync(Action<PropertyChanges> handler);
-    }
-
-    [Dictionary]
-    class DnsManagerProperties
-    {
-        private string _Mode = default(string);
-        public string Mode
-        {
-            get
-            {
-                return _Mode;
-            }
-
-            set
-            {
-                _Mode = (value);
-            }
-        }
-
-        private string _RcManager = default(string);
-        public string RcManager
-        {
-            get
-            {
-                return _RcManager;
-            }
-
-            set
-            {
-                _RcManager = (value);
-            }
-        }
-
-        private IDictionary<string, object>[] _Configuration = default(IDictionary<string, object>[]);
-        public IDictionary<string, object>[] Configuration
-        {
-            get
-            {
-                return _Configuration;
-            }
-
-            set
-            {
-                _Configuration = (value);
-            }
-        }
-    }
-
-    static class DnsManagerExtensions
-    {
-        public static Task<string> GetModeAsync(this IDnsManager o) => o.GetAsync<string>("Mode");
-        public static Task<string> GetRcManagerAsync(this IDnsManager o) => o.GetAsync<string>("RcManager");
-        public static Task<IDictionary<string, object>[]> GetConfigurationAsync(this IDnsManager o) => o.GetAsync<IDictionary<string, object>[]>("Configuration");
-    }
-
-    [DBusInterface("org.freedesktop.NetworkManager.DHCP4Config")]
-    interface IDHCP4Config : IDBusObject
-    {
-        Task<T> GetAsync<T>(string prop);
-        Task<DHCP4ConfigProperties> GetAllAsync();
-        Task SetAsync(string prop, object val);
-        Task<IDisposable> WatchPropertiesAsync(Action<PropertyChanges> handler);
-    }
-
-    [Dictionary]
-    class DHCP4ConfigProperties
-    {
-        private IDictionary<string, object> _Options = default(IDictionary<string, object>);
-        public IDictionary<string, object> Options
-        {
-            get
-            {
-                return _Options;
-            }
-
-            set
-            {
-                _Options = (value);
-            }
-        }
-    }
-
-    static class DHCP4ConfigExtensions
-    {
-        public static Task<IDictionary<string, object>> GetOptionsAsync(this IDHCP4Config o) => o.GetAsync<IDictionary<string, object>>("Options");
+        Task RegisterAsync(string Identifier);
+        Task RegisterWithCapabilitiesAsync(string Identifier, uint Capabilities);
+        Task UnregisterAsync();
     }
 
     [DBusInterface("org.freedesktop.NetworkManager.Device.Statistics")]
@@ -1889,6 +1827,68 @@ namespace NetworkManager.DBus
     {
         public static Task<string> GetHwAddressAsync(this IWifiP2P o) => o.GetAsync<string>("HwAddress");
         public static Task<ObjectPath[]> GetPeersAsync(this IWifiP2P o) => o.GetAsync<ObjectPath[]>("Peers");
+    }
+
+    [DBusInterface("org.freedesktop.NetworkManager.DnsManager")]
+    interface IDnsManager : IDBusObject
+    {
+        Task<T> GetAsync<T>(string prop);
+        Task<DnsManagerProperties> GetAllAsync();
+        Task SetAsync(string prop, object val);
+        Task<IDisposable> WatchPropertiesAsync(Action<PropertyChanges> handler);
+    }
+
+    [Dictionary]
+    class DnsManagerProperties
+    {
+        private string _Mode = default(string);
+        public string Mode
+        {
+            get
+            {
+                return _Mode;
+            }
+
+            set
+            {
+                _Mode = (value);
+            }
+        }
+
+        private string _RcManager = default(string);
+        public string RcManager
+        {
+            get
+            {
+                return _RcManager;
+            }
+
+            set
+            {
+                _RcManager = (value);
+            }
+        }
+
+        private IDictionary<string, object>[] _Configuration = default(IDictionary<string, object>[]);
+        public IDictionary<string, object>[] Configuration
+        {
+            get
+            {
+                return _Configuration;
+            }
+
+            set
+            {
+                _Configuration = (value);
+            }
+        }
+    }
+
+    static class DnsManagerExtensions
+    {
+        public static Task<string> GetModeAsync(this IDnsManager o) => o.GetAsync<string>("Mode");
+        public static Task<string> GetRcManagerAsync(this IDnsManager o) => o.GetAsync<string>("RcManager");
+        public static Task<IDictionary<string, object>[]> GetConfigurationAsync(this IDnsManager o) => o.GetAsync<IDictionary<string, object>[]>("Configuration");
     }
 
     [DBusInterface("org.freedesktop.NetworkManager.AccessPoint")]
