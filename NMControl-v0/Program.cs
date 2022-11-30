@@ -1,20 +1,27 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.ComponentModel.Design;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Threading;
-using System.Timers;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging.Console;
+using Microsoft.Extensions.Options;
 
 namespace NMControl_v0;
 class Program
 {
     static void Main(string[] args)
     {
+        using var loggerFactory = LoggerFactory.Create(builder =>
+        {
+            builder
+                .AddSystemdConsole();
+        });
+        ILogger logger = loggerFactory.CreateLogger("main");
+
         var devices = new List<Device>();
-        Console.WriteLine("Hello, World!");
         var devices_raw = "nmcli -f DEVICE,STATE -t device".Bash().Split('\r', '\n');
         foreach (var device_raw in devices_raw)
         {
@@ -29,40 +36,40 @@ class Program
                 devices.Add(device);
             }
         }
-        devices = devices.OrderBy(m=>m.Name).ToList();
+        devices = devices.OrderBy(m => m.Name).ToList();
         foreach (var device in devices)
         {
-            switch(device.State)
+            switch (device.State)
             {
                 case "connected":
-                    Console.WriteLine($"Stay tune with {device.Name}. State {device.State}");
+                    logger.LogInformation($"Stay tune with {device.Name}. State {device.State}");
                     break;
                 case "connecting (prepare)":
-                    Console.WriteLine($"Trying reset connection {device.Name}. Reason: {device.State}");
+                    logger.LogWarning($"Trying reset connection {device.Name}. Reason: {device.State}");
                     ConnectionDown(device.Name);
                     Thread.Sleep(2000);
                     var prepareResponse = ConnectionUp(device.Name);
-                    if(prepareResponse.ToLower().Contains("failed") || prepareResponse.ToLower().Contains("timeout"))
+                    if (prepareResponse.ToLower().Contains("failed") || prepareResponse.ToLower().Contains("timeout"))
                     {
-                        Console.WriteLine($"Failed activation of connecting (prepare) {device.Name}");
+                        logger.LogError($"Failed activation of connecting (prepare) {device.Name}");
                         ConnectionDown(device.Name);
                     }
                     else
-                        Console.WriteLine($"Success activation of connecting (prepare) {device.Name}");
+                        logger.LogWarning($"Success activation of connecting (prepare) {device.Name}");
                     break;
                 case "disconnected":
-                    Console.WriteLine($"Trying reset connection {device.Name}. Reason: {device.State}");
+                    logger.LogWarning($"Trying reset connection {device.Name}. Reason: {device.State}");
                     var disconnectResponse = ConnectionUp(device.Name);
                     if (disconnectResponse.ToLower().Contains("failed") || disconnectResponse.ToLower().Contains("timeout"))
                     {
-                        Console.WriteLine($"Activation failed of disconnected {device.Name}");
+                        logger.LogError($"Activation failed of disconnected {device.Name}");
                         ConnectionDown(device.Name);
                     }
                     else
-                        Console.WriteLine($"Success activation of disconnected {device.Name}");
+                        logger.LogWarning($"Success activation of disconnected {device.Name}");
                     break;
                 case "unavailable":
-                    Console.WriteLine($"Stay tune with {device.Name}. State {device.State}");
+                    logger.LogInformation($"Stay tune with {device.Name}. State {device.State}");
                     break;
             }
         }
@@ -77,6 +84,7 @@ class Program
         return $"nmcli -w 30 connection up {deviceName}-conn 2>&1".Bash();
     }
 }
+
 class Device
 {
     public string Name { get; set; }
