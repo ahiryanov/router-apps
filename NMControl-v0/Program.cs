@@ -1,11 +1,24 @@
 ﻿using System;
 using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 
 namespace NMControl_v0;
 class Program
 {
     static void Main(string[] args)
     {
+        using var loggerFactory = LoggerFactory.Create(builder =>
+        {
+            builder
+                .AddFilter("Microsoft", LogLevel.Warning)
+                .AddFilter("System", LogLevel.Warning)
+                .AddFilter("LoggingConsoleApp.Program", LogLevel.Debug)
+                .AddConsole()
+                .AddEventLog();
+        });
+        ILogger logger = loggerFactory.CreateLogger<Program>();
+        logger.LogInformation("Example log message");
+
         Console.WriteLine("Hello, World!");
         Console.WriteLine("nmcli -f DEVICE,STATE -t device".Bash());
     }
