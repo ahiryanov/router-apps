@@ -7,6 +7,10 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "qrename", "qrename\qrename.
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "gps-viewer", "gps-viewer\gps-viewer.csproj", "{BCAFDC93-19A1-4228-9B0D-E113179A6FF7}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NMControl", "NMControl\NMControl.csproj", "{BA182CB9-93F0-4A99-956D-5AA2C8B213EE}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NMControl-v0", "NMControl-v0\NMControl-v0.csproj", "{DCEC351A-7417-4977-9117-F2EAA9DDE1F9}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +25,14 @@ Global
 		{BCAFDC93-19A1-4228-9B0D-E113179A6FF7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BCAFDC93-19A1-4228-9B0D-E113179A6FF7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BCAFDC93-19A1-4228-9B0D-E113179A6FF7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BA182CB9-93F0-4A99-956D-5AA2C8B213EE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BA182CB9-93F0-4A99-956D-5AA2C8B213EE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BA182CB9-93F0-4A99-956D-5AA2C8B213EE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BA182CB9-93F0-4A99-956D-5AA2C8B213EE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DCEC351A-7417-4977-9117-F2EAA9DDE1F9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DCEC351A-7417-4977-9117-F2EAA9DDE1F9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DCEC351A-7417-4977-9117-F2EAA9DDE1F9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DCEC351A-7417-4977-9117-F2EAA9DDE1F9}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
