@@ -33,7 +33,7 @@ namespace gps_viewer
     public class GetGps : BackgroundService
     {
         //private static string[] serials = { "/dev/ttymxc1" };
-        private static string[] serials = { "/dev/ttyUSB0", "/dev/ttyUSB1" };
+        private static string[] serials = { "/dev/ttyUSB0", "/dev/ttyUSB1", "/dev/ttymxc1" };
         public static GpsPosition current;
         public static SerialPort port;
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
