@@ -1,13 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Logging.Console;
-using Microsoft.Extensions.Options;
 
 namespace NMControl_v0;
 class Program
@@ -77,11 +72,11 @@ class Program
 
     static string ConnectionDown(string deviceName)
     {
-        return $"nmcli -w 30 connection down {deviceName}-conn 2>&1".Bash();
+        return $"nmcli -w 30 connection down {deviceName}-conn".Bash();
     }
     static string ConnectionUp(string deviceName)
     {
-        return $"nmcli -w 30 connection up {deviceName}-conn 2>&1".Bash();
+        return $"nmcli -w 30 connection up {deviceName}-conn".Bash();
     }
 }
 
@@ -106,7 +101,7 @@ public static class ShellHelper
             StartInfo = new ProcessStartInfo
             {
                 FileName = "/bin/bash",
-                Arguments = $"-c \"{escapedArgs}\"",
+                Arguments = $"-c \"{escapedArgs} 2>&1\"",
                 RedirectStandardOutput = true,
                 UseShellExecute = false,
                 CreateNoWindow = true,
