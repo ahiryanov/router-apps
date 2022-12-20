@@ -3,7 +3,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net6.0</TargetFramework>
-    <RootNamespace>NMControl_v0</RootNamespace>
+    <RootNamespace>lte_reboot</RootNamespace>
     <PublishSingleFile>true</PublishSingleFile>
 	  <SelfContained>false</SelfContained>
   </PropertyGroup>

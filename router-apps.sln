@@ -9,7 +9,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "gps-viewer", "gps-viewer\gp
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NMControl", "NMControl\NMControl.csproj", "{BA182CB9-93F0-4A99-956D-5AA2C8B213EE}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NMControl-v0", "NMControl-v0\NMControl-v0.csproj", "{DCEC351A-7417-4977-9117-F2EAA9DDE1F9}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "lte-reboot", "lte-reboot\lte-reboot.csproj", "{DCEC351A-7417-4977-9117-F2EAA9DDE1F9}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "lte-check-flow-count", "lte-check-flow-count\lte-check-flow-count.csproj", "{F55594B6-8E9D-4BA8-909B-287015F8CBCE}"
 EndProject

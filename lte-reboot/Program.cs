@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using Microsoft.Extensions.Logging;
 
-namespace NMControl_v0;
+namespace lte_reboot;
 class Program
 {
     private static string _srv = "85.192.1.122";
