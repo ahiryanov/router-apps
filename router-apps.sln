@@ -11,6 +11,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NMControl", "NMControl\NMCo
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NMControl-v0", "NMControl-v0\NMControl-v0.csproj", "{DCEC351A-7417-4977-9117-F2EAA9DDE1F9}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "lte-check-flow-count", "lte-check-flow-count\lte-check-flow-count.csproj", "{F55594B6-8E9D-4BA8-909B-287015F8CBCE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -33,6 +35,10 @@ Global
 		{DCEC351A-7417-4977-9117-F2EAA9DDE1F9}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{DCEC351A-7417-4977-9117-F2EAA9DDE1F9}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{DCEC351A-7417-4977-9117-F2EAA9DDE1F9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F55594B6-8E9D-4BA8-909B-287015F8CBCE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F55594B6-8E9D-4BA8-909B-287015F8CBCE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F55594B6-8E9D-4BA8-909B-287015F8CBCE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F55594B6-8E9D-4BA8-909B-287015F8CBCE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
