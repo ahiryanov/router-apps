@@ -1,12 +1,14 @@
 ﻿using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using Microsoft.Extensions.Logging;
 
 namespace NMControl_v0;
 class Program
 {
+    private static string _srv = "85.192.1.122";
     static void Main(string[] args)
     {
         using var loggerFactory = LoggerFactory.Create(builder =>
@@ -18,6 +20,7 @@ class Program
 
         var devices = new List<Device>();
         var devices_raw = "nmcli -f DEVICE,STATE -t device".Bash().Split('\r', '\n');
+
         foreach (var device_raw in devices_raw)
         {
             if (string.IsNullOrWhiteSpace(device_raw))
@@ -31,16 +34,51 @@ class Program
                 devices.Add(device);
             }
         }
+
+        logger.LogInformation($"Device recognized count: {devices.Count}");
         devices = devices.OrderBy(m => m.Name).ToList();
+
         foreach (var device in devices)
         {
             switch (device.State)
             {
                 case "connected":
-                    logger.LogInformation($"Stay tune with {device.Name}. State {device.State}");
+                    logger.LogInformation($"Stay tune with {device.Name} ({device.Iface}). State {device.State}");
+                    var ping = $"ping {_srv} -I {device.Iface} -A -w 1 -q -s 1400".Bash();
+                    //logger.LogError($"#{ping}#");
+                    int PacketReceive =
+                        int.TryParse(new Regex(@"(\w+)\s" + "packets received").Match(ping).Groups[1].Value, out PacketReceive) ? PacketReceive : 0;
+                    int PacketLoss =
+                        int.TryParse(new Regex(@"(\d+)%\s" + "packet loss").Match(ping).Groups[1].Value, out PacketLoss) ? PacketLoss : 100;
+                    int AvgRtt =
+                        int.TryParse(new Regex("/" + @"(\d+)" + ".").Match(ping).Groups[1].Value, out AvgRtt) ? AvgRtt : 10000;
+                    logger.LogInformation($"Packet receive: {PacketReceive} # Packet loss %: {PacketLoss} # Average RTT ms: {AvgRtt}");
+                    if (PacketReceive < 3 || PacketLoss > 80 || AvgRtt > 800)
+                    {
+                        $"ip route del default dev {device.Iface}".Bash();
+                        $"ip link set dev {device.Iface} multipath off".Bash();
+                        logger.LogWarning($"{device.Name} {device.Iface} switched off multipath and default route");
+                    }
+                    else
+                    {
+                        $"ip link set dev {device.Iface} multipath on".Bash();
+                        int countRoutes = int.TryParse($"ip route show default dev {device.Iface} | wc -l".Bash(), out countRoutes) ? countRoutes : 0;
+                        if (countRoutes == 0)
+                        {
+                            var RefreshRouteResponse = ConnectionUp(device.Name);
+                            if (RefreshRouteResponse.ToLower().Contains("failed") || RefreshRouteResponse.ToLower().Contains("timeout"))
+                            {
+                                logger.LogError($"Refresh route failed {device.Name} ({device.Iface})");
+                                ConnectionDown(device.Name);
+                            }
+                            else
+                                logger.LogWarning($"Refresh route success {device.Name} ({device.Iface})");
+                        }
+                    }
                     break;
+
                 case "connecting (prepare)":
-                    logger.LogWarning($"Trying reset connection {device.Name}. Reason: {device.State}");
+                    logger.LogWarning($"Trying reset connection {device.Name} ({device.Iface}). Reason: {device.State}");
                     ConnectionDown(device.Name);
                     Thread.Sleep(2000);
                     var prepareResponse = ConnectionUp(device.Name);
@@ -52,8 +90,9 @@ class Program
                     else
                         logger.LogWarning($"Success activation of connecting (prepare) {device.Name}");
                     break;
+
                 case "disconnected":
-                    logger.LogWarning($"Trying reset connection {device.Name}. Reason: {device.State}");
+                    logger.LogWarning($"Trying reset connection {device.Name} ({device.Iface}). Reason: {device.State}");
                     var disconnectResponse = ConnectionUp(device.Name);
                     if (disconnectResponse.ToLower().Contains("failed") || disconnectResponse.ToLower().Contains("timeout"))
                     {
@@ -63,8 +102,9 @@ class Program
                     else
                         logger.LogWarning($"Success activation of disconnected {device.Name}");
                     break;
+
                 case "unavailable":
-                    logger.LogInformation($"Stay tune with {device.Name}. State {device.State}");
+                    logger.LogInformation($"Stay tune with {device.Name} ({device.Iface}). State {device.State}");
                     break;
             }
         }
@@ -72,11 +112,11 @@ class Program
 
     static string ConnectionDown(string deviceName)
     {
-        return $"nmcli -w 30 connection down {deviceName}-conn".Bash();
+        return $"nmcli -w 20 connection down {deviceName}-conn".Bash();
     }
     static string ConnectionUp(string deviceName)
     {
-        return $"nmcli -w 30 connection up {deviceName}-conn".Bash();
+        return $"nmcli -w 20 connection up {deviceName}-conn".Bash();
     }
 }
 
@@ -90,6 +130,7 @@ class Device
         return $"{Name} {State} {Iface}";
     }
 }
+
 public static class ShellHelper
 {
     public static string Bash(this string cmd)
