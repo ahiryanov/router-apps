@@ -8,9 +8,10 @@ using Microsoft.Extensions.Logging;
 namespace lte_check_flow_count;
 class Program
 {
-    private static int restart_count = 5;
-    private static string log_file = "/tmp/flow-restart";
-    private static string ovpn_unit = "openvpn@client.service";
+    private const string _srvIp = "85.192.1.122";
+    private const int _restartCount = 5;
+    private const string _logFile = "/tmp/flow-restart";
+    private const string _ovpnUnit = "openvpn@client.service";
 
     static void Main(string[] args)
     {
@@ -21,54 +22,53 @@ class Program
         });
         ILogger logger = loggerFactory.CreateLogger("main");
 
-        var flow_count = "ss -ntp".Bash().Split('\r', '\n').Where(a => (a.Contains("openvpn")) && (a.Contains("85.192.1.122"))).Count();
-        var route_count = "ip route show default".Bash().Split('\r', '\n').Where(a => a.Contains("wwan")).Count();
+        var flowCount = $"ss -Hntp state established dst {_srvIp}".Bash().Split('\r', '\n').Length;
+        var routeCount = "ip route show default".Bash().Split('\r', '\n').Count(a => a.Contains("wwan"));
 
-        if (flow_count != route_count)
+        if (flowCount != routeCount)
         {
-            logger.LogWarning($"Flow count = {flow_count}\nRoute count = {route_count}");
+            logger.LogWarning($"Flow count = {flowCount}\nMultipath count = {routeCount}");
             logger.LogWarning("Flow NOT equal routes!");
-            File.WriteAllText(log_file, "1");
-            $"systemctl -q restart {ovpn_unit}".Bash();
+            File.WriteAllText(_logFile, "1");
+            $"systemctl -q restart {_ovpnUnit}".Bash();
             Thread.Sleep(1000);
-            if ($"systemctl is-active {ovpn_unit}".Bash().Trim() == "active")
+            if ($"systemctl is-active {_ovpnUnit}".Bash().Trim() == "active")
                 logger.LogInformation("Success restart openvpn client");
             else
                 logger.LogError("FAILED restart openvpn client");
         }
         else
         {
-            logger.LogInformation("Flow equal routes");
-            if (!File.Exists(log_file))
-                File.WriteAllText(log_file, "1");
+            logger.LogInformation($"Flow equal routes. Count: {flowCount}");
+            if (!File.Exists(_logFile))
+                File.WriteAllText(_logFile, "1");
             else
             {
-                int current_count;
+                int currentCount;
                 try
                 {
-                    current_count = Convert.ToInt32(File.ReadAllText(log_file));
+                    currentCount = Convert.ToInt32(File.ReadAllText(_logFile));
                 }
                 catch
                 {
-                    File.WriteAllText(log_file, "1");
-                    current_count = Convert.ToInt32(File.ReadAllText(log_file));
+                    File.WriteAllText(_logFile, "1");
+                    currentCount = 1;
                 }
-                if (current_count >= restart_count)
+                if (currentCount > _restartCount)
                 {
-                    File.WriteAllText(log_file, "1");
-                    $"systemctl -q restart {ovpn_unit}".Bash();
+                    File.WriteAllText(_logFile, "1");
+                    $"systemctl -q restart {_ovpnUnit}".Bash();
                     Thread.Sleep(1000);
-                    var responce = $"systemctl is-active {ovpn_unit}".Bash().Trim();
-                    logger.LogInformation($"response #{responce}#");
-                    if (responce == "active")
+                    var response = $"systemctl is-active {_ovpnUnit}".Bash().Trim();
+                    if (response == "active")
                         logger.LogInformation("Success restart openvpn client by counter");
                     else
                         logger.LogError("FAILED restart openvpn client by counter");
                 }
                 else
                 {
-                    current_count++;
-                    File.WriteAllText(log_file, current_count.ToString());
+                    currentCount++;
+                    File.WriteAllText(_logFile, currentCount.ToString());
                 }
             }
         }
@@ -95,7 +95,7 @@ public static class ShellHelper
 
         process.Start();
         string result = process.StandardOutput.ReadToEnd();
-        process.WaitForExit(40000);
+        process.WaitForExit(35000);
 
         return result;
     }
