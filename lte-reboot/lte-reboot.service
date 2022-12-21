@@ -1,0 +1,11 @@
+[Unit]
+Description=Reboot disconnected or preparing qmi modems
+Wants=lte-reboot.timer
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/lte-reboot
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,10 @@
+[Unit]
+Description=Timer for run lte-reboot-qmi service every 5 minute
+Requires=lte-reboot.service
+
+[Timer]
+Unit=lte-reboot.service
+OnCalendar=*:2/2
+
+[Install]
+WantedBy=timers.target
