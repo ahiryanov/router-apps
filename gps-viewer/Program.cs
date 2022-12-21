@@ -8,17 +8,14 @@ using System.Threading.Tasks;
 
 namespace gps_viewer
 {
-    
+
     public class Program
     {
 
         public static void Main(string[] args)
         {
-            CreateHostBuilder(args).ConfigureServices(services =>
-            {
-                services.AddHostedService<GetGps>();
-            })
-                .Build().Run();  
+            CreateHostBuilder(args).ConfigureServices(services => { services.AddHostedService<GetGps>(); })
+                .Build().Run();
         }
 
         public static IHostBuilder CreateHostBuilder(string[] args) =>
@@ -32,10 +29,10 @@ namespace gps_viewer
 
     public class GetGps : BackgroundService
     {
-        //private static string[] serials = { "/dev/ttymxc1" };
-        private static string[] serials = { "/dev/ttyUSB0", "/dev/ttyUSB1", "/dev/ttymxc1" };
+        private static readonly string[] Serials = { "/dev/ttyUSB0", "/dev/ttyUSB1", "/dev/ttymxc1" };
         public static GpsPosition current;
         public static SerialPort port;
+
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             int i = 0;
@@ -44,7 +41,7 @@ namespace gps_viewer
             {
                 try
                 {
-                    port = new SerialPort(serials[i], 9600, Parity.None, 8, StopBits.One);
+                    port = new SerialPort(Serials[i], 9600, Parity.None, 8, StopBits.One);
                     port.Open();
                     port.ReadTimeout = 1000;
                     read = port.ReadLine();
@@ -53,21 +50,23 @@ namespace gps_viewer
                 {
                     Console.WriteLine(ex.Message);
                 }
+
                 await Task.Delay(1000);
-                
+
                 if (read != null)
                 {
-                    Console.WriteLine($"Serial {serials[i]} is OK. Continue");
+                    Console.WriteLine($"Serial {Serials[i]} is OK. Continue");
                     break;
                 }
-                Console.WriteLine($"Serial {serials[i]} unreadable. Trying next.");
+
+                Console.WriteLine($"Serial {Serials[i]} unreadable. Trying next.");
                 port.Close();
 
                 i++;
-                if (i >= serials.Length)
+                if (i >= Serials.Length)
                 {
                     i = 0;
-                    await Task.Delay(100000);
+                    await Task.Delay(100000, stoppingToken);
                 }
             } while (true);
 
@@ -84,8 +83,7 @@ namespace gps_viewer
         private static void port_DataReceived(object sender, SerialDataReceivedEventArgs e)
         {
             string line = port.ReadLine();
-            
-                
+
             if (line.Contains("GPRMC") || line.Contains("GNRMC"))
             {
                 string[] lines = line.Split(',');
@@ -94,11 +92,16 @@ namespace gps_viewer
                 string SPEED = string.IsNullOrWhiteSpace(lines[7]) ? "0" : lines[7];
                 try
                 {
-                    LAT = Math.Round(Convert.ToDouble(LAT.Substring(0, 2)) + Convert.ToDouble(LAT.Substring(2)) / 60, 6).ToString();
-                    LON = Math.Round(Convert.ToDouble(LON.Substring(0, 3)) + Convert.ToDouble(LON.Substring(3)) / 60, 6).ToString();
+                    LAT = Math.Round(Convert.ToDouble(LAT.Substring(0, 2)) + Convert.ToDouble(LAT.Substring(2)) / 60, 6)
+                        .ToString();
+                    LON = Math.Round(Convert.ToDouble(LON.Substring(0, 3)) + Convert.ToDouble(LON.Substring(3)) / 60, 6)
+                        .ToString();
                     SPEED = Convert.ToInt32(Convert.ToDouble(SPEED) * 1.852).ToString();
                 }
-                catch { }
+                catch
+                {
+                }
+
                 current = new GpsPosition() { Lat = LAT, Lon = LON, Speed = SPEED };
             }
 
