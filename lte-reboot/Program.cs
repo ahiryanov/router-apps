@@ -44,7 +44,7 @@ class Program
             {
                 case "connected":
                     logger.LogInformation($"Stay tune with {device.Name} ({device.Iface}). State {device.State}");
-                    var ping = $"ping {_srv} -I {device.Iface} -A -w 1 -q -s 1400".Bash();
+                    var ping = $"ping {_srv} -I {device.Iface} -A -w 1 -q".Bash();
                     //logger.LogError($"#{ping}#");
                     int PacketReceive =
                         int.TryParse(new Regex(@"(\w+)\s" + "packets received").Match(ping).Groups[1].Value, out PacketReceive) ? PacketReceive : 0;
@@ -53,8 +53,15 @@ class Program
                     int AvgRtt =
                         int.TryParse(new Regex("/" + @"(\d+)" + ".").Match(ping).Groups[1].Value, out AvgRtt) ? AvgRtt : 10000;
                     logger.LogInformation($"Packet receive: {PacketReceive} # Packet loss %: {PacketLoss} # Average RTT ms: {AvgRtt}");
-                    if (PacketReceive < 3 || PacketLoss > 80 || AvgRtt > 800)
+                    if (PacketLoss > 80 || AvgRtt > 800)
                     {
+                        int countRoutes = int.TryParse($"ip route show default | wc -l".Bash(), out countRoutes) ? countRoutes : 0;
+                        if (countRoutes <= 1)
+                        {
+                            logger.LogError("Last route can't remove");
+                            break;
+                        }
+
                         $"ip route del default dev {device.Iface}".Bash();
                         $"ip link set dev {device.Iface} multipath off".Bash();
                         logger.LogWarning($"{device.Name} {device.Iface} switched off multipath and default route");
