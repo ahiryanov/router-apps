@@ -1,0 +1,11 @@
+[Unit]
+Description=Compare count flows and routes for reboot openvpn service
+Wants=lte-check-flow-count.timer
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/lte-check-flow-count
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,10 @@
+[Unit]
+Description=Timer for run lte-check-flow-count service every 5 minute
+Requires=lte-check-flow-count.service
+
+[Timer]
+Unit=lte-check-flow-count.service
+OnCalendar=*:0/5
+
+[Install]
+WantedBy=timers.target
