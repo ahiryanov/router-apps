@@ -1,0 +1,63 @@
+﻿@page "/"
+@using BlazorApp1.Data
+@using System.Security.Principal
+@inject ModemInfoService InfoService
+<h1>Modem Info</h1>
+
+@if (_isConnected)
+{
+    <table class="table">
+        <thead>
+        <tr>
+            <th>Interface</th>
+            <th>IP</th>
+            <th>OPSOS</th>
+            <th>Mode</th>
+            <th>RSSI</th>
+            <th>SINR</th>
+            <th>ICCID</th>
+        </tr>
+        </thead>
+        <tbody>
+        @foreach (var modem in _modems!)
+        {
+            <tr>
+                <td>@modem.Name</td>
+                <td>@modem.Ip</td>
+                <td>@modem.Opsos</td>
+                <td>@modem.WorkMode</td>
+                <td>@modem.Rssi</td>
+                <td>@modem.Sinr</td>
+                <td>@modem.Iccid</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+else
+{
+    <div class="spinner"></div>
+}
+
+@code
+{
+    private List<ModemInfo>? _modems;
+
+    private bool _isConnected;
+
+    protected override async Task OnAfterRenderAsync(bool 
+        firstRender)
+    {
+        if (firstRender)
+        {
+            _isConnected = true;
+            await LoadStateAsync();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadStateAsync()
+    {
+        _modems = await InfoService.GetModemInfo();
+    }
+}

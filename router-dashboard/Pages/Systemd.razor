@@ -1,0 +1,41 @@
+﻿@page "/systemd"
+@using router_dashboard.Data
+@inject SystemdService SystemdServiceInject
+
+<h1>Systemd services status</h1>
+
+@if (false)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Service</th>
+                <th>IsActive</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var status in _statuses)
+        {
+            <tr>
+                <td>@status.Process</td>
+                <td>
+                    <div class="@(status.IsActive ? "circle_green" : "circle_red")"></div>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<(string Process, bool IsActive)>? _statuses;
+    protected override Task OnInitializedAsync()
+    {
+        _statuses = SystemdServiceInject.GetStatuses();
+        return Task.CompletedTask;
+    }
+}
