@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using System;
+using System.Globalization;
 using System.IO.Ports;
 using System.Threading;
 using System.Threading.Tasks;
@@ -93,13 +94,14 @@ namespace gps_viewer
                 try
                 {
                     LAT = Math.Round(Convert.ToDouble(LAT.Substring(0, 2)) + Convert.ToDouble(LAT.Substring(2)) / 60, 6)
-                        .ToString();
+                        .ToString(CultureInfo.InvariantCulture);
                     LON = Math.Round(Convert.ToDouble(LON.Substring(0, 3)) + Convert.ToDouble(LON.Substring(3)) / 60, 6)
-                        .ToString();
+                        .ToString(CultureInfo.InvariantCulture);
                     SPEED = Convert.ToInt32(Convert.ToDouble(SPEED) * 1.852).ToString();
                 }
                 catch
                 {
+                    // ignored
                 }
 
                 current = new GpsPosition { Lat = LAT, Lon = LON, Speed = SPEED };
