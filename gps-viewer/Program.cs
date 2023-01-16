@@ -72,7 +72,7 @@ namespace gps_viewer
 
             try
             {
-                port.DataReceived += new SerialDataReceivedEventHandler(port_DataReceived);
+                port.DataReceived += port_DataReceived;
             }
             catch (Exception ex)
             {
@@ -102,8 +102,10 @@ namespace gps_viewer
                 {
                 }
 
-                current = new GpsPosition() { Lat = LAT, Lon = LON, Speed = SPEED };
+                current = new GpsPosition { Lat = LAT, Lon = LON, Speed = SPEED };
             }
+
+            Task.Delay(1000);
 
         }
     }
