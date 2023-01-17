@@ -1,0 +1,12 @@
+[Unit]
+Description=Provide GPS data via get request
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/gps-viewer
+Restart=always
+Environment="DOTNET_BUNDLE_EXTRACT_BASE_DIR=/tmp"
+Environment="DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE=false"
+
+[Install]
+WantedBy=multi-user.target

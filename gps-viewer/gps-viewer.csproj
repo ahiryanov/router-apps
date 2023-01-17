@@ -11,4 +11,9 @@
   <ItemGroup>
     <PackageReference Include="System.IO.Ports" Version="6.0.0" />
   </ItemGroup>
+  <ItemGroup>
+    <None Update="gps.service">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 </Project>
