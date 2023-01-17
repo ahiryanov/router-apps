@@ -4,7 +4,6 @@
     <RootNamespace>gps_viewer</RootNamespace>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>false</SelfContained>
-    <RuntimeFrameworkVersion>6.0.0</RuntimeFrameworkVersion>
     <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
     <ServerGarbageCollection>false</ServerGarbageCollection>
   </PropertyGroup>
