@@ -4,7 +4,7 @@ namespace gps_viewer.Controllers
 {
     [ApiController]
     [Route("[controller]")]
-    public class gps : Controller
+    public class Gps : Controller
     {
         [HttpGet]
         public string Get()
