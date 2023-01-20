@@ -43,16 +43,14 @@ class Program
             switch (device.State)
             {
                 case "connected":
-                    logger.LogInformation($"Stay tune with {device.Name} ({device.Iface}). State {device.State}");
                     var ping = $"ping {_srv} -I {device.Iface} -A -w 1 -q".Bash();
-                    //logger.LogError($"#{ping}#");
                     int PacketReceive =
                         int.TryParse(new Regex(@"(\w+)\s" + "packets received").Match(ping).Groups[1].Value, out PacketReceive) ? PacketReceive : 0;
                     int PacketLoss =
                         int.TryParse(new Regex(@"(\d+)%\s" + "packet loss").Match(ping).Groups[1].Value, out PacketLoss) ? PacketLoss : 100;
                     int AvgRtt =
                         int.TryParse(new Regex("/" + @"(\d+)" + ".").Match(ping).Groups[1].Value, out AvgRtt) ? AvgRtt : 10000;
-                    logger.LogInformation($"Packet receive: {PacketReceive} # Packet loss %: {PacketLoss} # Average RTT ms: {AvgRtt}");
+                    logger.LogInformation($"{device.Name} ({device.Iface}) state {device.State}. Packet receive: {PacketReceive} # Packet loss %: {PacketLoss} # Average RTT ms: {AvgRtt}");
                     if (PacketLoss > 80 || AvgRtt > 800)
                     {
                         int countRoutes = int.TryParse($"ip route show default | wc -l".Bash(), out countRoutes) ? countRoutes : 0;
@@ -111,7 +109,7 @@ class Program
                     break;
 
                 case "unavailable":
-                    logger.LogInformation($"Stay tune with {device.Name} ({device.Iface}). State {device.State}");
+                    logger.LogInformation($"{device.Name} ({device.Iface}). State {device.State}");
                     break;
             }
         }
