@@ -73,42 +73,39 @@ namespace gps_viewer
 
             try
             {
-                port.DataReceived += port_DataReceived;
+                while (true)
+                {
+                    string line = port.ReadLine();
+                    if (line.Contains("GPRMC") || line.Contains("GNRMC"))
+                    {
+                        string[] lines = line.Split(',');
+                        string LAT = string.IsNullOrWhiteSpace(lines[3]) ? "0" : lines[3];
+                        string LON = string.IsNullOrWhiteSpace(lines[5]) ? "0" : lines[5];
+                        string SPEED = string.IsNullOrWhiteSpace(lines[7]) ? "0" : lines[7];
+                        try
+                        {
+                            LAT = Math.Round(Convert.ToDouble(LAT.Substring(0, 2)) + Convert.ToDouble(LAT.Substring(2)) / 60, 6)
+                                .ToString(CultureInfo.InvariantCulture);
+                            LON = Math.Round(Convert.ToDouble(LON.Substring(0, 3)) + Convert.ToDouble(LON.Substring(3)) / 60, 6)
+                                .ToString(CultureInfo.InvariantCulture);
+                            SPEED = Convert.ToInt32(Convert.ToDouble(SPEED) * 1.852).ToString();
+                        }
+                        catch
+                        {
+                            // ignored
+                        }
+
+                        current = new GpsPosition { Lat = LAT, Lon = LON, Speed = SPEED };
+                        await Task.Delay(1000);
+                    }
+                    await Task.Delay(200);
+
+                }
             }
             catch (Exception ex)
             {
                 Console.WriteLine(ex.Message);
             }
-        }
-
-        private static void port_DataReceived(object sender, SerialDataReceivedEventArgs e)
-        {
-            string line = port.ReadLine();
-
-            if (line.Contains("GPRMC") || line.Contains("GNRMC"))
-            {
-                string[] lines = line.Split(',');
-                string LAT = string.IsNullOrWhiteSpace(lines[3]) ? "0" : lines[3];
-                string LON = string.IsNullOrWhiteSpace(lines[5]) ? "0" : lines[5];
-                string SPEED = string.IsNullOrWhiteSpace(lines[7]) ? "0" : lines[7];
-                try
-                {
-                    LAT = Math.Round(Convert.ToDouble(LAT.Substring(0, 2)) + Convert.ToDouble(LAT.Substring(2)) / 60, 6)
-                        .ToString(CultureInfo.InvariantCulture);
-                    LON = Math.Round(Convert.ToDouble(LON.Substring(0, 3)) + Convert.ToDouble(LON.Substring(3)) / 60, 6)
-                        .ToString(CultureInfo.InvariantCulture);
-                    SPEED = Convert.ToInt32(Convert.ToDouble(SPEED) * 1.852).ToString();
-                }
-                catch
-                {
-                    // ignored
-                }
-
-                current = new GpsPosition { Lat = LAT, Lon = LON, Speed = SPEED };
-            }
-
-            Task.Delay(1000);
-
         }
     }
 
