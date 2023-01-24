@@ -4,18 +4,16 @@ using System.IO;
 using System.IO.Ports;
 using System.Linq;
 using System.Net.NetworkInformation;
-using System.Reflection.Metadata;
-using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
 namespace lcd
 {
-    internal class Program
+    internal static class Program
     {
-        public static SerialPort? port;
+        private static SerialPort? _port;
 
-        static async Task Main(string[] args)
+        static async Task Main()
         {
             using var loggerFactory = LoggerFactory.Create(builder =>
             {
@@ -31,11 +29,11 @@ namespace lcd
                 if (portName != null)
                 {
                     logger.LogInformation("Successful find ttyUSB0, stay tuned");
-                    port = new SerialPort(portName, 115200, Parity.None, 8, StopBits.One);
+                    _port = new SerialPort(portName, 115200, Parity.None, 8, StopBits.One);
                     logger.LogWarning(portName);
                     try
                     {
-                        port.Open();
+                        _port.Open();
                         logger.LogInformation("Successful open port ttyUSB0. Starting...");
                         break;
                     }
@@ -59,7 +57,7 @@ namespace lcd
             
             while (true)
             {
-                if (port is { IsOpen: true })
+                if (_port is { IsOpen: true })
                 {
                     var ip = NetworkInterface.GetAllNetworkInterfaces().FirstOrDefault(i => i.Name == "tun1")?.GetIPProperties()
                         .UnicastAddresses[0].Address.ToString();
@@ -72,23 +70,23 @@ namespace lcd
                         if (reply.Status == IPStatus.Success)
                             online = "online";
                     }
-                    catch (Exception e)
+                    catch
                     {
                         // ignored
                     }
                     var modems = "nmcli -f DEVICE,STATE -t device".Bash().Split('\r', '\n').Count(s => s.Contains("cdc-wdm"));
                     var modemsUp = "nmcli -f DEVICE,STATE -t device".Bash().Split('\r', '\n').Count(s => s.Contains(":connected"));
 
-                    port.Write($"ECHO 1 {host}\r");
-                    port.Write($"ECHO 2 VER: {ver}\r");
+                    _port.Write($"ECHO 1 {host}\r");
+                    _port.Write($"ECHO 2 VER: {ver}\r");
                     await Task.Delay(6000);
                     //Thread.Sleep(6000);
-                    port.Write($"ECHO 1 {ip}\r");
-                    port.Write($"ECHO 2 VPN: {online}\r");
+                    _port.Write($"ECHO 1 {ip}\r");
+                    _port.Write($"ECHO 2 VPN: {online}\r");
                     await Task.Delay(6000);
                     //Thread.Sleep(6000);
-                    port.Write($"ECHO 1 LTE: {modems}\r");
-                    port.Write($"ECHO 2 LTE UP: {modemsUp}\r");
+                    _port.Write($"ECHO 1 LTE: {modems}\r");
+                    _port.Write($"ECHO 2 LTE UP: {modemsUp}\r");
                     await Task.Delay(6000);
                     //Thread.Sleep(6000);
                 }
