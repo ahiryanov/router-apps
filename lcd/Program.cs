@@ -15,7 +15,7 @@ namespace lcd
     {
         public static SerialPort? port;
 
-        static async void Main(string[] args)
+        static async Task Main(string[] args)
         {
             using var loggerFactory = LoggerFactory.Create(builder =>
             {
