@@ -31,8 +31,8 @@ namespace gps_viewer
     public class GetGps : BackgroundService
     {
         private static readonly string[] Serials = { "/dev/ttyUSB0", "/dev/ttyUSB1", "/dev/ttymxc1" };
-        public static GpsPosition current;
-        public static SerialPort port;
+        public static GpsPosition Current;
+        private static SerialPort _port;
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
@@ -42,10 +42,10 @@ namespace gps_viewer
             {
                 try
                 {
-                    port = new SerialPort(Serials[i], 9600, Parity.None, 8, StopBits.One);
-                    port.Open();
-                    port.ReadTimeout = 1000;
-                    read = port.ReadLine();
+                    _port = new SerialPort(Serials[i], 9600, Parity.None, 8, StopBits.One);
+                    _port.Open();
+                    _port.ReadTimeout = 1000;
+                    read = _port.ReadLine();
                 }
                 catch (Exception ex)
                 {
@@ -61,7 +61,7 @@ namespace gps_viewer
                 }
 
                 Console.WriteLine($"Serial {Serials[i]} unreadable. Trying next.");
-                port.Close();
+                _port.Close();
 
                 i++;
                 if (i >= Serials.Length)
@@ -75,7 +75,7 @@ namespace gps_viewer
             {
                 while (true)
                 {
-                    string line = port.ReadLine();
+                    string line = _port.ReadLine();
                     if (line.Contains("GPRMC") || line.Contains("GNRMC"))
                     {
                         string[] lines = line.Split(',');
@@ -95,10 +95,10 @@ namespace gps_viewer
                             // ignored
                         }
 
-                        current = new GpsPosition { Lat = LAT, Lon = LON, Speed = SPEED };
-                        await Task.Delay(1000);
+                        Current = new GpsPosition { Lat = LAT, Lon = LON, Speed = SPEED };
+                        await Task.Delay(1000, stoppingToken);
                     }
-                    await Task.Delay(200);
+                    await Task.Delay(200, stoppingToken);
 
                 }
             }
