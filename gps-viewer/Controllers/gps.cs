@@ -9,7 +9,7 @@ namespace gps_viewer.Controllers
         [HttpGet]
         public string Get()
         {
-            var gps = GetGps.current;
+            var gps = GetGps.Current;
             if (gps != null)
                 return $"{gps.Lat} {gps.Lon} {gps.Speed}";
             else
@@ -21,7 +21,7 @@ namespace gps_viewer.Controllers
 
         public JsonResult GetJson()
         {
-            var gps = GetGps.current;
+            var gps = GetGps.Current;
             if (gps != null)
                 return Json(gps);
             else

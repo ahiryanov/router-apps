@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net.NetworkInformation;
 using System.Reflection.Metadata;
 using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
 namespace lcd
@@ -14,7 +15,7 @@ namespace lcd
     {
         public static SerialPort? port;
 
-        static void Main(string[] args)
+        static async void Main(string[] args)
         {
             using var loggerFactory = LoggerFactory.Create(builder =>
             {
@@ -47,7 +48,8 @@ namespace lcd
                 {
                     logger.LogError("Can't find ttyUSB0!");
                 }
-                Thread.Sleep(10000);
+                await Task.Delay(10000);
+                //Thread.Sleep(10000);
             } while (true);
 
 
@@ -79,13 +81,16 @@ namespace lcd
 
                     port.Write($"ECHO 1 {host}\r");
                     port.Write($"ECHO 2 VER: {ver}\r");
-                    Thread.Sleep(6000);
+                    await Task.Delay(6000);
+                    //Thread.Sleep(6000);
                     port.Write($"ECHO 1 {ip}\r");
                     port.Write($"ECHO 2 VPN: {online}\r");
-                    Thread.Sleep(6000);
+                    await Task.Delay(6000);
+                    //Thread.Sleep(6000);
                     port.Write($"ECHO 1 LTE: {modems}\r");
                     port.Write($"ECHO 2 LTE UP: {modemsUp}\r");
-                    Thread.Sleep(6000);
+                    await Task.Delay(6000);
+                    //Thread.Sleep(6000);
                 }
                 else
                 {
