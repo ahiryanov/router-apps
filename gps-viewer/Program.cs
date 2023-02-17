@@ -30,7 +30,7 @@ namespace gps_viewer
 
     public class GetGps : BackgroundService
     {
-        private static readonly string[] Serials = { "/dev/ttyUSB0", "/dev/ttyUSB1", "/dev/ttymxc1" };
+        private static readonly string[] Serials = { "/dev/ttyUSB0", "/dev/ttyUSB1", "/dev/ttymxc1", "/dev/ttyS1" };
         public static GpsPosition Current;
         private static SerialPort _port;
 
