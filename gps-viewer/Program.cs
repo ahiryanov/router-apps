@@ -30,7 +30,8 @@ namespace gps_viewer
 
     public class GetGps : BackgroundService
     {
-        private static readonly string[] Serials = { "/dev/ttyUSB0", "/dev/ttyUSB1", "/dev/ttymxc1" };
+        private static readonly string[] Serials = { "/dev/ttyUSB0", "/dev/ttyUSB1", "/dev/ttymxc1", "/dev/ttyS1" };
+        private string _CurrentPort;
         public static GpsPosition Current;
         private static SerialPort _port;
 
@@ -51,28 +52,40 @@ namespace gps_viewer
                 {
                     Console.WriteLine(ex.Message);
                 }
-
-                await Task.Delay(1000);
-
+                
                 if (read != null)
                 {
                     Console.WriteLine($"Serial {Serials[i]} is OK. Continue");
+                    _CurrentPort = Serials[i];
+                    _port.Close();
+                    await Task.Delay(1000);
                     break;
                 }
-
                 Console.WriteLine($"Serial {Serials[i]} unreadable. Trying next.");
                 _port.Close();
-
                 i++;
                 if (i >= Serials.Length)
                 {
                     i = 0;
                     await Task.Delay(100000, stoppingToken);
                 }
+                await Task.Delay(1000);
             } while (true);
 
-            try
+
+            while (true)
             {
+                try
+                {
+                    _port = new SerialPort(_CurrentPort, 9600, Parity.None, 8, StopBits.One);
+                    _port.Open();
+                    _port.ReadTimeout = 1000;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.Message);
+                }
+
                 while (true)
                 {
                     string line = _port.ReadLine();
@@ -84,9 +97,11 @@ namespace gps_viewer
                         string SPEED = string.IsNullOrWhiteSpace(lines[7]) ? "0" : lines[7];
                         try
                         {
-                            LAT = Math.Round(Convert.ToDouble(LAT.Substring(0, 2)) + Convert.ToDouble(LAT.Substring(2)) / 60, 6)
+                            LAT = Math.Round(
+                                    Convert.ToDouble(LAT.Substring(0, 2)) + Convert.ToDouble(LAT.Substring(2)) / 60, 6)
                                 .ToString(CultureInfo.InvariantCulture);
-                            LON = Math.Round(Convert.ToDouble(LON.Substring(0, 3)) + Convert.ToDouble(LON.Substring(3)) / 60, 6)
+                            LON = Math.Round(
+                                    Convert.ToDouble(LON.Substring(0, 3)) + Convert.ToDouble(LON.Substring(3)) / 60, 6)
                                 .ToString(CultureInfo.InvariantCulture);
                             SPEED = Convert.ToInt32(Convert.ToDouble(SPEED) * 1.852).ToString();
                         }
@@ -96,15 +111,13 @@ namespace gps_viewer
                         }
 
                         Current = new GpsPosition { Lat = LAT, Lon = LON, Speed = SPEED };
+                        _port.Close();
                         await Task.Delay(1000, stoppingToken);
+                        break;
                     }
-                    await Task.Delay(200, stoppingToken);
 
+                    await Task.Delay(200, stoppingToken);
                 }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
             }
         }
     }
