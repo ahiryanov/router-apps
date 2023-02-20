@@ -53,6 +53,12 @@ class Program
                     logger.LogInformation($"{device.Name} ({device.Iface}) state {device.State}. Packet receive: {PacketReceive} # Packet loss %: {PacketLoss} # Average RTT ms: {AvgRtt}");
                     if (PacketLoss > 80 || AvgRtt > 800)
                     {
+                        int countRoutesDevice = int.TryParse($"ip route show default dev {device.Iface} | wc -l".Bash(), out countRoutesDevice) ? countRoutesDevice : 0;
+                        if (countRoutesDevice == 0)
+                        {
+                            logger.LogInformation($"{device.Name} ({device.Iface}) routes already deleted");
+                            break;
+                        }
                         int countRoutes = int.TryParse($"ip route show default | wc -l".Bash(), out countRoutes) ? countRoutes : 0;
                         if (countRoutes <= 1)
                         {
