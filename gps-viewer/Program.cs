@@ -46,11 +46,11 @@ public class GetGps : BackgroundService
                 _port.ReadTimeout = 1000;
                 read = _port.ReadLine();
             }
-            catch (Exception ex)
+            catch
             {
-                Console.WriteLine($"EXCEPTION DETECT PORT!!!! {ex.Message}");
+                // ignored
             }
-                
+
             if (read != null)
             {
                 Console.WriteLine($"Serial {Serials[i]} is OK. Continue");
@@ -67,7 +67,8 @@ public class GetGps : BackgroundService
                 i = 0;
                 await Task.Delay(100000, stoppingToken);
             }
-            await Task.Delay(1000);
+            else
+                await Task.Delay(1000, stoppingToken);
         } while (true);
 
         while (true)
