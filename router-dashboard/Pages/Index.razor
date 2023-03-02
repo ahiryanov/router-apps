@@ -7,28 +7,31 @@
 {
     <table class="table">
         <thead>
-        <tr>
-            <th>Interface</th>
-            <th>IP</th>
-            <th>OPSOS</th>
-            <th>Mode</th>
-            <th>RSSI</th>
-            <th>SINR</th>
-            <th>ICCID</th>
-        </tr>
+            <tr>
+                <th>Interface</th>
+                <th>Status</th>
+                <th>OPSOS</th>
+                <th>Mode</th>
+                <th>RSSI</th>
+                <th>SINR</th>
+                <th>ICCID</th>
+            </tr>
         </thead>
         <tbody>
-        @foreach (var modem in _modems!)
+        @if (_Modems != null)
         {
-            <tr>
-                <td>@modem.Name</td>
-                <td>@modem.Ip</td>
-                <td>@modem.Opsos</td>
-                <td>@modem.WorkMode</td>
-                <td>@modem.Rssi</td>
-                <td>@modem.Sinr</td>
-                <td>@modem.Iccid</td>
-            </tr>
+            @foreach (var modem in _Modems!)
+            {
+                <tr>
+                    <td>@modem.Name</td>
+                    <td>@modem.Status</td>
+                    <td>@modem.Opsos</td>
+                    <td>@modem.WorkMode</td>
+                    <td>@modem.Rssi</td>
+                    <td>@modem.Sinr</td>
+                    <td>@modem.Iccid</td>
+                </tr>
+            }
         }
         </tbody>
     </table>
@@ -40,7 +43,7 @@ else
 
 @code
 {
-    private List<ModemInfo>? _modems;
+    private List<ModemInfo>? _Modems;
 
     private bool _isConnected;
 
@@ -57,6 +60,6 @@ else
 
     private async Task LoadStateAsync()
     {
-        _modems = await InfoService.GetModemInfo();
+        _Modems = await InfoService.GetModemInfo();
     }
 }

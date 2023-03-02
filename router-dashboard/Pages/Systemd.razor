@@ -12,30 +12,34 @@ else
 {
     <table class="table">
         <thead>
-            <tr>
-                <th>Service</th>
-                <th>IsActive</th>
-            </tr>
+        <tr>
+            <th>Service</th>
+            <th>IsActive</th>
+        </tr>
         </thead>
         <tbody>
-        @foreach (var status in _statuses)
+        @if (_Statuses != null)
         {
-            <tr>
-                <td>@status.Process</td>
-                <td>
-                    <div class="@(status.IsActive ? "circle_green" : "circle_red")"></div>
-                </td>
-            </tr>
+            foreach (var status in _Statuses)
+            {
+                <tr>
+                    <td>@status.Process</td>
+                    <td>
+                        <div class="@(status.IsActive ? "circle_green" : "circle_red")"></div>
+                    </td>
+                </tr>
+            }
         }
         </tbody>
     </table>
 }
 
-@code {
-    private List<(string Process, bool IsActive)>? _statuses;
+@code 
+{
+    private List<(string Process, bool IsActive)>? _Statuses;
     protected override Task OnInitializedAsync()
     {
-        _statuses = SystemdServiceInject.GetStatuses();
+        _Statuses = SystemdServiceInject.GetStatuses();
         return Task.CompletedTask;
     }
 }
