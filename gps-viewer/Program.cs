@@ -6,6 +6,7 @@ using System.Globalization;
 using System.IO.Ports;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace gps_viewer;
 
@@ -19,6 +20,21 @@ public class Program
 
     public static IHostBuilder CreateHostBuilder(string[] args) =>
         Host.CreateDefaultBuilder(args)
+            .ConfigureLogging(i =>
+            {
+                i.AddFilter((provider, category, logLevel) =>
+                {
+                    if (category.Contains("Microsoft.AspNetCore.Hosting") && logLevel >= LogLevel.Information)
+                    {
+                        return true;
+                    }
+
+                    if (category.Contains("Microsoft.AspNetCore") && logLevel >= LogLevel.Warning)
+                        return true;
+                    return false;
+                });
+
+            })
             .ConfigureWebHostDefaults(webBuilder =>
             {
                 webBuilder.UseStartup<Startup>();
@@ -59,6 +75,7 @@ public class GetGps : BackgroundService
                 await Task.Delay(1000);
                 break;
             }
+
             Console.WriteLine($"Serial {Serials[i]} unreadable. Trying next.");
             _port.Close();
             i++;
@@ -81,7 +98,10 @@ public class GetGps : BackgroundService
             catch (Exception ex)
             {
                 Console.WriteLine($"EXCEPTION READ FROM PORT!!!! {ex.Message}");
+                await Task.Delay(5000, stoppingToken);
+                continue;
             }
+
             while (true)
             {
                 string line = _port.ReadLine();
@@ -110,7 +130,7 @@ public class GetGps : BackgroundService
                     await Task.Delay(1000, stoppingToken);
                     break;
                 }
-                await Task.Delay(500, stoppingToken);
+                await Task.Delay(100, stoppingToken);
             }
         }
     }
