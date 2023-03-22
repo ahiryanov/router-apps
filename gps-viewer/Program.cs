@@ -44,7 +44,7 @@ public class Program
 
 public class GetGps : BackgroundService
 {
-    private static readonly string[] Serials = { "/dev/ttyUSB0", "/dev/ttyUSB1", "/dev/ttymxc1", "/dev/ttyS1" };
+    private static readonly string[] Serials = { "/dev/ttyUSB0", "/dev/ttyUSB1", "/dev/ttymxc1", "/dev/ttyS1", "/dev/ttyGPS0" };
     private string _CurrentPort;
     public static GpsPosition Current;
     private static SerialPort _port;
