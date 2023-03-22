@@ -13,6 +13,9 @@
     <None Update="gps.service">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
+    <None Update="13-gps-symlink.rules">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 </Project>
 
