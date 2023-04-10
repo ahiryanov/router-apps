@@ -1,1 +1,0 @@
-﻿SUBSYSTEM=="tty", ACTION=="add", ATTRS{interface}=="Quad RS232-HS", ATTRS{bInterfaceNumber}=="01", SYMLINK+="ttyGPS0"
