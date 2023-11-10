@@ -4,7 +4,7 @@ Requires=lte-reboot.service
 
 [Timer]
 Unit=lte-reboot.service
-OnCalendar=*:2/2
+OnCalendar=*:*:00,30
 
 [Install]
 WantedBy=timers.target
