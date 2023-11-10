@@ -51,7 +51,7 @@ class Program
                     int AvgRtt =
                         int.TryParse(new Regex("/" + @"(\d+)" + ".").Match(ping).Groups[1].Value, out AvgRtt) ? AvgRtt : 10000;
                     logger.LogInformation($"{device.Name} ({device.Iface}) state {device.State}. Packet receive: {PacketReceive} # Packet loss %: {PacketLoss} # Average RTT ms: {AvgRtt}");
-                    if (PacketLoss > 30 || AvgRtt > 300)
+                    if (PacketLoss > 20 || AvgRtt > 250)
                     {
                         int countRoutesDevice = int.TryParse($"ip route show default dev {device.Iface} | wc -l".Bash(), out countRoutesDevice) ? countRoutesDevice : 0;
                         if (countRoutesDevice == 0)
