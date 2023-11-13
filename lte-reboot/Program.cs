@@ -35,6 +35,7 @@ class Program
             }
         }
 
+        logger.LogInformation("Ver. 1401");
         logger.LogInformation($"Device recognized count: {devices.Count}");
         devices = devices.OrderBy(m => m.Name).ToList();
 
@@ -43,7 +44,7 @@ class Program
             switch (device.State)
             {
                 case "connected":
-                    var ping = $"ping {_srv} -I {device.Iface} -A -w 1 -q".Bash();
+                    var ping = $"ping {_srv} -I {device.Iface} -A -w 1 -q -s 1000".Bash();
                     int PacketReceive =
                         int.TryParse(new Regex(@"(\w+)\s" + "packets received").Match(ping).Groups[1].Value, out PacketReceive) ? PacketReceive : 0;
                     int PacketLoss =
@@ -51,7 +52,7 @@ class Program
                     int AvgRtt =
                         int.TryParse(new Regex("/" + @"(\d+)" + ".").Match(ping).Groups[1].Value, out AvgRtt) ? AvgRtt : 10000;
                     logger.LogInformation($"{device.Name} ({device.Iface}) state {device.State}. Packet receive: {PacketReceive} # Packet loss %: {PacketLoss} # Average RTT ms: {AvgRtt}");
-                    if (PacketLoss > 20 || AvgRtt > 200)
+                    if (PacketLoss > 20 || AvgRtt > 250)
                     {
                         int countRoutesDevice = int.TryParse($"ip route show default dev {device.Iface} | wc -l".Bash(), out countRoutesDevice) ? countRoutesDevice : 0;
                         if (countRoutesDevice == 0)
