@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -9,15 +10,23 @@ namespace lte_reboot;
 class Program
 {
     private static string _srv = "85.192.1.122";
+    private static int maxRtt = 200;
+    private static int maxLoss = 20;
     static void Main(string[] args)
     {
+        if (args.Length == 2)
+        {
+            int.TryParse(args[0],out maxLoss);
+            int.TryParse(args[1],out maxRtt);
+        }
+        
         using var loggerFactory = LoggerFactory.Create(builder =>
         {
             builder
                 .AddSystemdConsole();
         });
         ILogger logger = loggerFactory.CreateLogger("main");
-
+        logger.LogInformation($"Current thresholds. Max loss {maxLoss}, Max rtt {maxRtt}");
         var devices = new List<Device>();
         var devices_raw = "nmcli -f DEVICE,STATE -t device".Bash().Split('\r', '\n');
 
@@ -34,8 +43,6 @@ class Program
                 devices.Add(device);
             }
         }
-
-        logger.LogInformation("Ver. 1401");
         logger.LogInformation($"Device recognized count: {devices.Count}");
         devices = devices.OrderBy(m => m.Name).ToList();
 
@@ -44,7 +51,7 @@ class Program
             switch (device.State)
             {
                 case "connected":
-                    var ping = $"ping {_srv} -I {device.Iface} -A -w 1 -q -s 1000".Bash();
+                    var ping = $"ping {_srv} -I {device.Iface} -A -w 1 -q -s 1400".Bash();
                     int PacketReceive =
                         int.TryParse(new Regex(@"(\w+)\s" + "packets received").Match(ping).Groups[1].Value, out PacketReceive) ? PacketReceive : 0;
                     int PacketLoss =
@@ -52,7 +59,7 @@ class Program
                     int AvgRtt =
                         int.TryParse(new Regex("/" + @"(\d+)" + ".").Match(ping).Groups[1].Value, out AvgRtt) ? AvgRtt : 10000;
                     logger.LogInformation($"{device.Name} ({device.Iface}) state {device.State}. Packet receive: {PacketReceive} # Packet loss %: {PacketLoss} # Average RTT ms: {AvgRtt}");
-                    if (PacketLoss > 20 || AvgRtt > 250)
+                    if (PacketLoss > maxLoss || AvgRtt > maxRtt)
                     {
                         int countRoutesDevice = int.TryParse($"ip route show default dev {device.Iface} | wc -l".Bash(), out countRoutesDevice) ? countRoutesDevice : 0;
                         if (countRoutesDevice == 0)
@@ -124,11 +131,11 @@ class Program
 
     static string ConnectionDown(string deviceName)
     {
-        return $"nmcli -w 10 connection down {deviceName}-conn".Bash();
+        return $"nmcli -w 20 connection down {deviceName}-conn".Bash();
     }
     static string ConnectionUp(string deviceName)
     {
-        return $"nmcli -w 10 connection up {deviceName}-conn".Bash();
+        return $"nmcli -w 20 connection up {deviceName}-conn".Bash();
     }
 }
 
