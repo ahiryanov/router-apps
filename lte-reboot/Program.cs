@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -12,14 +13,16 @@ class Program
     private static string _srv = "85.192.1.122";
     private static int maxRtt = 200;
     private static int maxLoss = 20;
+    private const int _restartCount = 5;
+    private const string _logFile = "/tmp/lte-reboot";
     static void Main(string[] args)
     {
         if (args.Length == 2)
         {
-            int.TryParse(args[0],out maxLoss);
-            int.TryParse(args[1],out maxRtt);
+            int.TryParse(args[0], out maxLoss);
+            int.TryParse(args[1], out maxRtt);
         }
-        
+
         using var loggerFactory = LoggerFactory.Create(builder =>
         {
             builder
@@ -84,8 +87,8 @@ class Program
                         int countRoutes = int.TryParse($"ip route show default dev {device.Iface} | wc -l".Bash(), out countRoutes) ? countRoutes : 0;
                         if (countRoutes == 0)
                         {
-                            var RefreshRouteResponse = ConnectionUp(device.Name);
-                            if (RefreshRouteResponse.ToLower().Contains("failed") || RefreshRouteResponse.ToLower().Contains("timeout"))
+                            var refreshRouteIsUp = ConnectionUp(device.Name, logger);
+                            if (!refreshRouteIsUp)
                             {
                                 logger.LogError($"Refresh route failed {device.Name} ({device.Iface})");
                                 ConnectionDown(device.Name);
@@ -100,8 +103,8 @@ class Program
                     logger.LogWarning($"Trying reset connection {device.Name} ({device.Iface}). Reason: {device.State}");
                     ConnectionDown(device.Name);
                     Thread.Sleep(2000);
-                    var prepareResponse = ConnectionUp(device.Name);
-                    if (prepareResponse.ToLower().Contains("failed") || prepareResponse.ToLower().Contains("timeout"))
+                    var prepareIsUp = ConnectionUp(device.Name, logger);
+                    if (!prepareIsUp)
                     {
                         logger.LogError($"Failed activation of connecting (prepare) {device.Name}");
                         ConnectionDown(device.Name);
@@ -112,8 +115,8 @@ class Program
 
                 case "disconnected":
                     logger.LogWarning($"Trying reset connection {device.Name} ({device.Iface}). Reason: {device.State}");
-                    var disconnectResponse = ConnectionUp(device.Name);
-                    if (disconnectResponse.ToLower().Contains("failed") || disconnectResponse.ToLower().Contains("timeout"))
+                    var disconnectIsUp = ConnectionUp(device.Name, logger);
+                    if (!disconnectIsUp)
                     {
                         logger.LogError($"Activation failed of disconnected {device.Name}");
                         ConnectionDown(device.Name);
@@ -131,11 +134,41 @@ class Program
 
     static string ConnectionDown(string deviceName)
     {
-        return $"nmcli -w 20 connection down {deviceName}-conn".Bash();
+        return $"nmcli -w 15 connection down {deviceName}-conn".Bash();
     }
-    static string ConnectionUp(string deviceName)
+    static bool ConnectionUp(string deviceName, ILogger logger)
     {
-        return $"nmcli -w 20 connection up {deviceName}-conn".Bash();
+        bool successUp = true;
+        var response = $"nmcli -w 15 connection up {deviceName}-conn".Bash();
+        if (response.ToLower().Contains("failed") || response.ToLower().Contains("timeout"))
+            successUp = false;
+            if (!File.Exists(_logFile))
+                File.WriteAllText(_logFile, "1");
+            else
+            {
+                int currentCount;
+                try
+                {
+                    currentCount = Convert.ToInt32(File.ReadAllText(_logFile));
+                }
+                catch
+                {
+                    File.WriteAllText(_logFile, "1");
+                    currentCount = 1;
+                }
+                if (currentCount > _restartCount)
+                {
+                    File.WriteAllText(_logFile, "1");
+                    $"qmicli -p -d /dev/{deviceName} --dms-set-operating-mode=reset".Bash();
+                    logger.LogError($"{deviceName} POWER REBOOT");
+                }
+                else
+                {
+                    currentCount++;
+                    File.WriteAllText(_logFile, currentCount.ToString());
+                }
+            }
+        return successUp;
     }
 }
 
