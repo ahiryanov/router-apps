@@ -11,8 +11,8 @@ namespace lte_reboot;
 class Program
 {
     private static string _srv = "85.192.1.122";
-    private static int maxRtt = 200;
-    private static int maxLoss = 20;
+    private static int maxRtt = 250;
+    private static int maxLoss = 25;
     private const int _restartCount = 5;
     private const string _logFile = "/tmp/lte-reboot";
     static void Main(string[] args)
@@ -62,7 +62,7 @@ class Program
                     int AvgRtt =
                         int.TryParse(new Regex("/" + @"(\d+)" + ".").Match(ping).Groups[1].Value, out AvgRtt) ? AvgRtt : 10000;
                     logger.LogInformation($"{device.Name} ({device.Iface}) state {device.State}. Packet receive: {PacketReceive} # Packet loss %: {PacketLoss} # Average RTT ms: {AvgRtt}");
-                    if (PacketLoss > maxLoss || AvgRtt > maxRtt)
+                    if (PacketLoss > maxLoss && AvgRtt > maxRtt)
                     {
                         int countRoutesDevice = int.TryParse($"ip route show default dev {device.Iface} | wc -l".Bash(), out countRoutesDevice) ? countRoutesDevice : 0;
                         if (countRoutesDevice == 0)
@@ -138,36 +138,43 @@ class Program
     }
     static bool ConnectionUp(string deviceName, ILogger logger)
     {
+        string modemlog = $"{_logFile}-{deviceName}";
         bool successUp = true;
         var response = $"nmcli -w 15 connection up {deviceName}-conn".Bash();
         if (response.ToLower().Contains("failed") || response.ToLower().Contains("timeout"))
+        {
             successUp = false;
-            if (!File.Exists(_logFile))
-                File.WriteAllText(_logFile, "1");
+            if (!File.Exists(modemlog))
+                File.WriteAllText(modemlog, "1");
             else
             {
                 int currentCount;
                 try
                 {
-                    currentCount = Convert.ToInt32(File.ReadAllText(_logFile));
+                    currentCount = Convert.ToInt32(File.ReadAllText(modemlog));
                 }
                 catch
                 {
-                    File.WriteAllText(_logFile, "1");
+                    File.WriteAllText(modemlog, "1");
                     currentCount = 1;
                 }
                 if (currentCount > _restartCount)
                 {
-                    File.WriteAllText(_logFile, "1");
+                    File.WriteAllText(modemlog, "1");
                     $"qmicli -p -d /dev/{deviceName} --dms-set-operating-mode=reset".Bash();
                     logger.LogError($"{deviceName} POWER REBOOT");
                 }
                 else
                 {
                     currentCount++;
-                    File.WriteAllText(_logFile, currentCount.ToString());
+                    File.WriteAllText(modemlog, currentCount.ToString());
                 }
             }
+        }
+        else
+        {
+            File.WriteAllText(modemlog, "1");
+        }
         return successUp;
     }
 }
