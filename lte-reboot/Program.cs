@@ -10,13 +10,19 @@ using Microsoft.Extensions.Logging;
 namespace lte_reboot;
 class Program
 {
-    private static string _srv = "85.192.1.122";
-    private static int maxRtt = 250;
+    private static string _srv;
+    private static int maxRtt = 300;
     private static int maxLoss = 25;
     private const int _restartCount = 5;
     private const string _logFile = "/tmp/lte-reboot";
     static void Main(string[] args)
     {
+        //SRV detect 
+        if(File.Exists("/etc/openvpn/client.conf"))
+            _srv = "cat /etc/openvpn/client.conf | grep \"remote \" | awk '{{print $2}}'".Bash().Trim();
+        if(File.Exists("/etc/openvpn/client/client.conf"))
+            _srv = "cat /etc/openvpn/client/client.conf | grep \"remote \" | awk '{{print $2}}'".Bash().Trim();
+        
         if (args.Length == 2)
         {
             int.TryParse(args[0], out maxLoss);
@@ -29,6 +35,7 @@ class Program
                 .AddSystemdConsole();
         });
         ILogger logger = loggerFactory.CreateLogger("main");
+        logger.LogInformation($"Detected server ip: {_srv}");
         logger.LogInformation($"Current thresholds. Max loss {maxLoss}, Max rtt {maxRtt}");
         var devices = new List<Device>();
         var devices_raw = "nmcli -f DEVICE,STATE -t device".Bash().Split('\r', '\n');
@@ -54,6 +61,8 @@ class Program
             switch (device.State)
             {
                 case "connected":
+                    var mptcpId = $"ip mptcp endpoint | grep {device.Iface} | awk '{{print $3}}'".Bash();
+                    //logger.LogInformation($"MPTCP NEW ID: {mptcpId}");
                     var ping = $"ping {_srv} -I {device.Iface} -A -w 1 -q -s 1400".Bash();
                     int PacketReceive =
                         int.TryParse(new Regex(@"(\w+)\s" + "packets received").Match(ping).Groups[1].Value, out PacketReceive) ? PacketReceive : 0;
@@ -62,8 +71,11 @@ class Program
                     int AvgRtt =
                         int.TryParse(new Regex("/" + @"(\d+)" + ".").Match(ping).Groups[1].Value, out AvgRtt) ? AvgRtt : 10000;
                     logger.LogInformation($"{device.Name} ({device.Iface}) state {device.State}. Packet receive: {PacketReceive} # Packet loss %: {PacketLoss} # Average RTT ms: {AvgRtt}");
-                    if (PacketLoss > maxLoss && AvgRtt > maxRtt)
+                    if (PacketLoss > maxLoss || AvgRtt > maxRtt )
                     {
+                        $"ip link set dev {device.Iface} multipath off".Bash();
+                        //section for MPTCPv1
+                        $"ip mptcp endpoint del id {mptcpId}".Bash();
                         int countRoutesDevice = int.TryParse($"ip route show default dev {device.Iface} | wc -l".Bash(), out countRoutesDevice) ? countRoutesDevice : 0;
                         if (countRoutesDevice == 0)
                         {
@@ -76,9 +88,7 @@ class Program
                             logger.LogError("Last route can't remove");
                             break;
                         }
-
                         $"ip route del default dev {device.Iface}".Bash();
-                        $"ip link set dev {device.Iface} multipath off".Bash();
                         logger.LogWarning($"{device.Name} {device.Iface} switched off multipath and default route");
                     }
                     else
