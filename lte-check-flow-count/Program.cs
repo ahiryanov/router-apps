@@ -22,12 +22,12 @@ class Program
                 .AddSystemdConsole();
         });
         ILogger logger = loggerFactory.CreateLogger("main");
-
-
-        if(File.Exists("/etc/openvpn/client.conf"))
+        //srv detection
+        if (File.Exists("/etc/openvpn/client.conf"))
             _srv = "cat /etc/openvpn/client.conf | grep \"remote \" | awk '{{print $2}}'".Bash().Trim();
-        if(File.Exists("/etc/openvpn/client/client.conf"))
+        if (File.Exists("/etc/openvpn/client/client.conf"))
             _srv = "cat /etc/openvpn/client/client.conf | grep \"remote \" | awk '{{print $2}}'".Bash().Trim();
+            
         var flowCount = $"ss -Hntp state established dst {_srv}".Bash().Trim().Split('\r', '\n').Length;
         var routeCount = "ip route show default".Bash().Split('\r', '\n').Count(a => a.Contains("wwan"));
 

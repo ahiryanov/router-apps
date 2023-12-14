@@ -18,11 +18,11 @@ class Program
     static void Main(string[] args)
     {
         //SRV detect 
-        if(File.Exists("/etc/openvpn/client.conf"))
+        if (File.Exists("/etc/openvpn/client.conf"))
             _srv = "cat /etc/openvpn/client.conf | grep \"remote \" | awk '{{print $2}}'".Bash().Trim();
-        if(File.Exists("/etc/openvpn/client/client.conf"))
+        if (File.Exists("/etc/openvpn/client/client.conf"))
             _srv = "cat /etc/openvpn/client/client.conf | grep \"remote \" | awk '{{print $2}}'".Bash().Trim();
-        
+
         if (args.Length == 2)
         {
             int.TryParse(args[0], out maxLoss);
@@ -71,7 +71,7 @@ class Program
                     int AvgRtt =
                         int.TryParse(new Regex("/" + @"(\d+)" + ".").Match(ping).Groups[1].Value, out AvgRtt) ? AvgRtt : 10000;
                     logger.LogInformation($"{device.Name} ({device.Iface}) state {device.State}. Packet receive: {PacketReceive} # Packet loss %: {PacketLoss} # Average RTT ms: {AvgRtt}");
-                    if (PacketLoss > maxLoss || AvgRtt > maxRtt )
+                    if (PacketLoss > maxLoss || AvgRtt > maxRtt)
                     {
                         $"ip link set dev {device.Iface} multipath off".Bash();
                         //section for MPTCPv1
