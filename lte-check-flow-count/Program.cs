@@ -65,6 +65,7 @@ class Program
                 {
                     File.WriteAllText(_logFile, "1");
                     $"systemctl -q restart {_ovpnUnit}".Bash();
+                    $"systemctl -q restart {_ovpnUnit2}".Bash();
                     Thread.Sleep(1000);
                     var response = $"systemctl is-active {_ovpnUnit}".Bash().Trim();
                     if (response == "active")
