@@ -1,5 +1,7 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -8,16 +10,33 @@ using Microsoft.Extensions.Logging;
 namespace lte_reboot;
 class Program
 {
-    private static string _srv = "85.192.1.122";
+    private static string _srv;
+    private static int maxRtt = 300;
+    private static int maxLoss = 25;
+    private const int _restartCount = 5;
+    private const string _logFile = "/tmp/lte-reboot";
     static void Main(string[] args)
     {
+        //SRV detect 
+        if (File.Exists("/etc/openvpn/client.conf"))
+            _srv = "cat /etc/openvpn/client.conf | grep \"remote \" | awk '{{print $2}}'".Bash().Trim();
+        if (File.Exists("/etc/openvpn/client/client.conf"))
+            _srv = "cat /etc/openvpn/client/client.conf | grep \"remote \" | awk '{{print $2}}'".Bash().Trim();
+
+        if (args.Length == 2)
+        {
+            int.TryParse(args[0], out maxLoss);
+            int.TryParse(args[1], out maxRtt);
+        }
+
         using var loggerFactory = LoggerFactory.Create(builder =>
         {
             builder
                 .AddSystemdConsole();
         });
         ILogger logger = loggerFactory.CreateLogger("main");
-
+        logger.LogInformation($"Detected server ip: {_srv}");
+        logger.LogInformation($"Current thresholds. Max loss {maxLoss}, Max rtt {maxRtt}");
         var devices = new List<Device>();
         var devices_raw = "nmcli -f DEVICE,STATE -t device".Bash().Split('\r', '\n');
 
@@ -34,8 +53,6 @@ class Program
                 devices.Add(device);
             }
         }
-
-        logger.LogInformation("Ver. 1401");
         logger.LogInformation($"Device recognized count: {devices.Count}");
         devices = devices.OrderBy(m => m.Name).ToList();
 
@@ -44,7 +61,9 @@ class Program
             switch (device.State)
             {
                 case "connected":
-                    var ping = $"ping {_srv} -I {device.Iface} -A -w 1 -q -s 1000".Bash();
+                    var mptcpId = $"ip mptcp endpoint | grep {device.Iface} | awk '{{print $3}}'".Bash();
+                    //logger.LogInformation($"MPTCP NEW ID: {mptcpId}");
+                    var ping = $"ping {_srv} -I {device.Iface} -A -w 1 -q -s 1400".Bash();
                     int PacketReceive =
                         int.TryParse(new Regex(@"(\w+)\s" + "packets received").Match(ping).Groups[1].Value, out PacketReceive) ? PacketReceive : 0;
                     int PacketLoss =
@@ -52,8 +71,11 @@ class Program
                     int AvgRtt =
                         int.TryParse(new Regex("/" + @"(\d+)" + ".").Match(ping).Groups[1].Value, out AvgRtt) ? AvgRtt : 10000;
                     logger.LogInformation($"{device.Name} ({device.Iface}) state {device.State}. Packet receive: {PacketReceive} # Packet loss %: {PacketLoss} # Average RTT ms: {AvgRtt}");
-                    if (PacketLoss > 20 || AvgRtt > 250)
+                    if (PacketLoss > maxLoss || AvgRtt > maxRtt)
                     {
+                        $"ip link set dev {device.Iface} multipath off".Bash();
+                        //section for MPTCPv1
+                        $"ip mptcp endpoint del id {mptcpId}".Bash();
                         int countRoutesDevice = int.TryParse($"ip route show default dev {device.Iface} | wc -l".Bash(), out countRoutesDevice) ? countRoutesDevice : 0;
                         if (countRoutesDevice == 0)
                         {
@@ -66,9 +88,7 @@ class Program
                             logger.LogError("Last route can't remove");
                             break;
                         }
-
                         $"ip route del default dev {device.Iface}".Bash();
-                        $"ip link set dev {device.Iface} multipath off".Bash();
                         logger.LogWarning($"{device.Name} {device.Iface} switched off multipath and default route");
                     }
                     else
@@ -77,8 +97,8 @@ class Program
                         int countRoutes = int.TryParse($"ip route show default dev {device.Iface} | wc -l".Bash(), out countRoutes) ? countRoutes : 0;
                         if (countRoutes == 0)
                         {
-                            var RefreshRouteResponse = ConnectionUp(device.Name);
-                            if (RefreshRouteResponse.ToLower().Contains("failed") || RefreshRouteResponse.ToLower().Contains("timeout"))
+                            var refreshRouteIsUp = ConnectionUp(device.Name, logger);
+                            if (!refreshRouteIsUp)
                             {
                                 logger.LogError($"Refresh route failed {device.Name} ({device.Iface})");
                                 ConnectionDown(device.Name);
@@ -93,8 +113,8 @@ class Program
                     logger.LogWarning($"Trying reset connection {device.Name} ({device.Iface}). Reason: {device.State}");
                     ConnectionDown(device.Name);
                     Thread.Sleep(2000);
-                    var prepareResponse = ConnectionUp(device.Name);
-                    if (prepareResponse.ToLower().Contains("failed") || prepareResponse.ToLower().Contains("timeout"))
+                    var prepareIsUp = ConnectionUp(device.Name, logger);
+                    if (!prepareIsUp)
                     {
                         logger.LogError($"Failed activation of connecting (prepare) {device.Name}");
                         ConnectionDown(device.Name);
@@ -105,8 +125,8 @@ class Program
 
                 case "disconnected":
                     logger.LogWarning($"Trying reset connection {device.Name} ({device.Iface}). Reason: {device.State}");
-                    var disconnectResponse = ConnectionUp(device.Name);
-                    if (disconnectResponse.ToLower().Contains("failed") || disconnectResponse.ToLower().Contains("timeout"))
+                    var disconnectIsUp = ConnectionUp(device.Name, logger);
+                    if (!disconnectIsUp)
                     {
                         logger.LogError($"Activation failed of disconnected {device.Name}");
                         ConnectionDown(device.Name);
@@ -124,11 +144,48 @@ class Program
 
     static string ConnectionDown(string deviceName)
     {
-        return $"nmcli -w 10 connection down {deviceName}-conn".Bash();
+        return $"nmcli -w 15 connection down {deviceName}-conn".Bash();
     }
-    static string ConnectionUp(string deviceName)
+    static bool ConnectionUp(string deviceName, ILogger logger)
     {
-        return $"nmcli -w 10 connection up {deviceName}-conn".Bash();
+        string modemlog = $"{_logFile}-{deviceName}";
+        bool successUp = true;
+        var response = $"nmcli -w 15 connection up {deviceName}-conn".Bash();
+        if (response.ToLower().Contains("failed") || response.ToLower().Contains("timeout"))
+        {
+            successUp = false;
+            if (!File.Exists(modemlog))
+                File.WriteAllText(modemlog, "1");
+            else
+            {
+                int currentCount;
+                try
+                {
+                    currentCount = Convert.ToInt32(File.ReadAllText(modemlog));
+                }
+                catch
+                {
+                    File.WriteAllText(modemlog, "1");
+                    currentCount = 1;
+                }
+                if (currentCount > _restartCount)
+                {
+                    File.WriteAllText(modemlog, "1");
+                    $"qmicli -p -d /dev/{deviceName} --dms-set-operating-mode=reset".Bash();
+                    logger.LogError($"{deviceName} POWER REBOOT");
+                }
+                else
+                {
+                    currentCount++;
+                    File.WriteAllText(modemlog, currentCount.ToString());
+                }
+            }
+        }
+        else
+        {
+            File.WriteAllText(modemlog, "1");
+        }
+        return successUp;
     }
 }
 
