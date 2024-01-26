@@ -1,0 +1,13 @@
+[Unit]
+Description=Provide GPS data via get request
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/persist-config
+Restart=always
+Environment="DOTNET_BUNDLE_EXTRACT_BASE_DIR=/tmp"
+Environment="DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE=false"
+Environment="DOTNET_GCHeapHardLimit=0x800000"
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,10 @@
+﻿/etc/chilli/config
+/etc/chilli/local.conf
+/etc/dnsmasq.d/vlan*
+/etc/systemd/network/bond.network
+/etc/systemd/network/vlan*
+/etc/hostname
+/etc/hosts
+/etc/openvpn/client/client.conf
+/etc/zabbix/zabbix_agentd.conf
+/etc/zabbix/zabbix_proxy.conf
