@@ -106,7 +106,7 @@ internal class Program
                         }
                 }
 
-                _configList = configs.Distinct().ToList();
+                _configList = configs.GroupBy(c => c.FullPath).Select(g => g.First()).ToList();
 
             }
             catch (Exception e)
