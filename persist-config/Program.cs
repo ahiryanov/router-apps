@@ -46,17 +46,17 @@ internal class Program
  
                  }
 
-                 if (!IsSymlink(config.FullPath))
-                 {
-                     Directory.CreateDirectory($"/configs{config.Directory}");
-                     File.Copy(config.FullPath, $"/configs{config.FullPath}");
-                 }
-
                  if (File.Exists($"/configs{config.FullPath}"))
                  {
                      if (File.Exists(config.FullPath))
                          File.Delete(config.FullPath);
                      File.CreateSymbolicLink(config.FullPath, $"/configs{config.FullPath}");
+                 }
+
+                 if (!IsSymlink(config.FullPath))
+                 {
+                     Directory.CreateDirectory($"/configs{config.Directory}");
+                     File.Copy(config.FullPath, $"/configs{config.FullPath}");
                  }
             }
         }
