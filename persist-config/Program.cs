@@ -55,7 +55,7 @@ internal class Program
 
                  if (!IsSymlink(config.FullPath))
                  {
-                     Directory.CreateDirectory($"/configs{config.Directory}");
+                     Directory.CreateDirectory($"/configs{config.Directory}"); 
                      File.Copy(config.FullPath, $"/configs{config.FullPath}");
                  }
             }
