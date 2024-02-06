@@ -19,9 +19,9 @@ class Program
     {
         //SRV detect 
         if (File.Exists("/etc/openvpn/client.conf"))
-            _srv = "cat /etc/openvpn/client.conf | grep \"remote \" | awk '{{print $2}}'".Bash().Trim();
+            _srv = "cat /etc/openvpn/client.conf | grep \"^remote \" | awk '{{print $2}}'".Bash().Trim();
         if (File.Exists("/etc/openvpn/client/client.conf"))
-            _srv = "cat /etc/openvpn/client/client.conf | grep \"remote \" | awk '{{print $2}}'".Bash().Trim();
+            _srv = "cat /etc/openvpn/client/client.conf | grep \"^remote \" | awk '{{print $2}}'".Bash().Trim();
 
         if (args.Length == 2)
         {
