@@ -5,6 +5,7 @@ After=multi-user.target
 
 [Service]
 Type=oneshot
+TimeoutStartSec=90s
 ExecStart=/usr/sbin/lte-reboot
 Environment="DOTNET_GCHeapHardLimit=0x800000"
 
