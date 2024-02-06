@@ -1,6 +1,6 @@
 [Unit]
 Description=Load and store config files on persistent partition
-Before=network.target
+Before=network-pre.target
 
 [Service]
 Type=simple
