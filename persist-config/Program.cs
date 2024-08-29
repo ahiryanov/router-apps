@@ -19,7 +19,7 @@ internal class Program
     {
         if (ReadConfigList(_configListPath))
         {
-            //just print all find files
+            //just print all configs and check existing in filesystem
             foreach (var config in _configList)
             {
                 Console.WriteLine($"Found file {config.FullPath} Exist: {File.Exists(config.FullPath)}");
@@ -73,6 +73,7 @@ internal class Program
         return pathInfo.Attributes.HasFlag(FileAttributes.ReparsePoint);
     }
 
+    //config list creating, depends on config_list file and existing files in filesystem
     private static bool ReadConfigList(string path)
     {
         if (!string.IsNullOrWhiteSpace(path))
@@ -82,6 +83,7 @@ internal class Program
                 List<Config> configs = new();
                 foreach (var line in File.ReadLines(path))
                 {
+                    //adding configs if they exist in filesystem 
                     if (Directory.Exists(Path.GetDirectoryName(line)))
                         foreach (var file in Directory.GetFiles(Path.GetDirectoryName(line)!, Path.GetFileName(line)))
                         {
@@ -92,7 +94,7 @@ internal class Program
                                 Directory = Path.GetDirectoryName(file)
                             });
                         }
-
+                    //adding config if the exist in config directory
                     if (Directory.Exists($"/configs{Path.GetDirectoryName(line)}"))
                         foreach (var file in Directory.GetFiles($"/configs{Path.GetDirectoryName(line)}"!,
                                      Path.GetFileName(line)))
@@ -105,7 +107,7 @@ internal class Program
                             });
                         }
                 }
-
+                //remove repeating configs
                 _configList = configs.GroupBy(c => c.FullPath).Select(g => g.First()).ToList();
 
             }
