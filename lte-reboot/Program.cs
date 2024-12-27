@@ -14,9 +14,10 @@ class Program
     private static int maxRtt = 300;
     private static int maxLoss = 25;
     private const int _restartCount = 5;
-    private const string _logFile = "/tmp/lte-reboot";
+    private const string _logFile = "/tmp/lte";
     static void Main(string[] args)
     {
+        
         //SRV detect 
         if (File.Exists("/etc/openvpn/client.conf"))
             _srv = "cat /etc/openvpn/client.conf | grep \"^remote \" | awk '{{print $2}}'".Bash().Trim();
@@ -35,6 +36,8 @@ class Program
                 .AddSystemdConsole();
         });
         ILogger logger = loggerFactory.CreateLogger("main");
+        bool mptcpV1 = isMPTCPv1()!.Value;
+        logger.LogInformation(mptcpV1?"MPTCPv1":"MPTCPv0");
         logger.LogInformation($"Detected server ip: {_srv}");
         logger.LogInformation($"Current thresholds. Max loss {maxLoss}, Max rtt {maxRtt}");
         var devices = new List<Device>();
@@ -61,8 +64,6 @@ class Program
             switch (device.State)
             {
                 case "connected":
-                    var mptcpId = $"ip mptcp endpoint | grep {device.Iface} | awk '{{print $3}}'".Bash();
-                    //logger.LogInformation($"MPTCP NEW ID: {mptcpId}");
                     var ping = $"ping {_srv} -I {device.Iface} -A -w 1 -q -s 1400".Bash();
                     int PacketReceive =
                         int.TryParse(new Regex(@"(\w+)\s" + "packets received").Match(ping).Groups[1].Value, out PacketReceive) ? PacketReceive : 0;
@@ -73,9 +74,17 @@ class Program
                     logger.LogInformation($"{device.Name} ({device.Iface}) state {device.State}. Packet receive: {PacketReceive} # Packet loss %: {PacketLoss} # Average RTT ms: {AvgRtt}");
                     if (PacketLoss > maxLoss || AvgRtt > maxRtt)
                     {
-                        $"ip link set dev {device.Iface} multipath off".Bash();
-                        //section for MPTCPv1
-                        $"ip mptcp endpoint del id {mptcpId}".Bash();
+                        if (mptcpV1)//section for MPTCPv1
+                        {
+                            var mptcpId = $"ip mptcp endpoint | grep {device.Iface} | awk '{{print $3}}'".Bash();
+                            $"ip mptcp endpoint del id {mptcpId}".Bash();
+                            //logger.LogInformation($"MPTCP NEW ID: {mptcpId}");
+                        }
+                        else //section for MPTCPv0
+                        {
+                            $"ip link set dev {device.Iface} multipath off".Bash();
+                        }
+                        
                         int countRoutesDevice = int.TryParse($"ip route show default dev {device.Iface} | wc -l".Bash(), out countRoutesDevice) ? countRoutesDevice : 0;
                         if (countRoutesDevice == 0)
                         {
@@ -136,10 +145,20 @@ class Program
                     break;
 
                 case "unavailable":
-                    logger.LogInformation($"{device.Name} ({device.Iface}). State {device.State}");
+                    logger.LogInformation($"{device.Name} ({device.Iface}) state {device.State}");
+                    ConnectionUp(device.Name, logger);
                     break;
             }
         }
+    }
+
+    static bool? isMPTCPv1()
+    {
+        if (File.Exists("/proc/sys/net/mptcp/enabled"))
+            return true;
+        if (File.Exists("/proc/sys/net/mptcp/mptcp_enabled"))
+            return false;
+        return null;
     }
 
     static string ConnectionDown(string deviceName)
@@ -148,42 +167,49 @@ class Program
     }
     static bool ConnectionUp(string deviceName, ILogger logger)
     {
-        string modemlog = $"{_logFile}-{deviceName}";
+        string resetModemlog = $"{_logFile}-{deviceName}-reset";
         bool successUp = true;
         var response = $"nmcli -w 15 connection up {deviceName}-conn".Bash();
         if (response.ToLower().Contains("failed") || response.ToLower().Contains("timeout"))
         {
             successUp = false;
-            if (!File.Exists(modemlog))
-                File.WriteAllText(modemlog, "1");
+            if (!File.Exists(resetModemlog))
+                File.WriteAllText(resetModemlog, "1");
             else
             {
                 int currentCount;
                 try
                 {
-                    currentCount = Convert.ToInt32(File.ReadAllText(modemlog));
+                    currentCount = Convert.ToInt32(File.ReadAllText(resetModemlog));
                 }
                 catch
                 {
-                    File.WriteAllText(modemlog, "1");
+                    File.WriteAllText(resetModemlog, "1");
                     currentCount = 1;
                 }
-                if (currentCount > _restartCount)
+                if (currentCount > _restartCount) //power reboot modem every {restartCount} times of reconnect
                 {
-                    File.WriteAllText(modemlog, "1");
+                    File.WriteAllText(resetModemlog, "1");
                     $"qmicli -p -d /dev/{deviceName} --dms-set-operating-mode=reset".Bash();
                     logger.LogError($"{deviceName} POWER REBOOT");
                 }
                 else
                 {
+                    if (currentCount == 3) //sim reboot in the middle of cycle
+                    {
+                        $"qmicli -p -d /dev/{deviceName} --uim-sim-power-off=1".Bash();
+                        Thread.Sleep(1500);
+                        $"qmicli -p -d /dev/{deviceName} --uim-sim-power-on=1".Bash();
+                        logger.LogError($"{deviceName} SIM REBOOT");
+                    }
                     currentCount++;
-                    File.WriteAllText(modemlog, currentCount.ToString());
+                    File.WriteAllText(resetModemlog, currentCount.ToString());
                 }
             }
         }
         else
         {
-            File.WriteAllText(modemlog, "1");
+            File.WriteAllText(resetModemlog, "1");
         }
         return successUp;
     }
