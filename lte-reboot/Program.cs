@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 namespace lte_reboot;
 class Program
 {
-    private static string _srv;
+    private static string _srv; //gittest
     private static int maxRtt = 300;
     private static int maxLoss = 25;
     private const int _restartCount = 5;
