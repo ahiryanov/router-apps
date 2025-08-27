@@ -76,33 +76,20 @@ class Program
                     {
 						if (mptcpV1)//section for MPTCPv1
 						{
-							var mptcpId = $"ip mptcp endpoint | grep {device.Iface} | awk '{{print $3}}'".Bash();
+							var mptcpId = $"ip mptcp endpoint | grep {device.Iface} | awk '{{print $3}}'".Bash().Trim();
 							$"ip mptcp endpoint change id {mptcpId} backup".Bash();
 							logger.LogWarning($"{device.Name} {device.Iface} marked as BACKUP");
                         }
-                        /*
-                        int countRoutesDevice = int.TryParse($"ip route show default dev {device.Iface} | wc -l".Bash(), out countRoutesDevice) ? countRoutesDevice : 0;
-                        if (countRoutesDevice == 0)
-                        {
-                            logger.LogInformation($"{device.Name} ({device.Iface}) routes already deleted");
-                            break;
-                        }
-                        int countRoutes = int.TryParse($"ip route show default | wc -l".Bash(), out countRoutes) ? countRoutes : 0;
-                        if (countRoutes <= 1)
-                        {
-                            logger.LogError("Last route can't remove");
-                            break;
-                        }
-                        $"ip route del default dev {device.Iface}".Bash();
-                        logger.LogWarning($"{device.Name} {device.Iface} switched off multipath and default route");
-						*/
                     }
                     else
                     {
-						//$"ip link set dev {device.Iface} multipath on".Bash();
-						var mptcpId = $"ip mptcp endpoint | grep {device.Iface} | awk '{{print $3}}'".Bash();
-						$"ip mptcp endpoint change id {mptcpId} nobackup".Bash();
-						logger.LogWarning($"{device.Name} {device.Iface} marked as NOBACKUP");
+						int isBackup = int.TryParse($"ip mptcp endpoint | grep {device.Iface} | grep backup | wc -l".Bash(), out isBackup) ? isBackup : 0;
+						if (isBackup == 1)
+						{
+							var mptcpId = $"ip mptcp endpoint | grep {device.Iface} | awk '{{print $3}}'".Bash().Trim();
+							$"ip mptcp endpoint change id {mptcpId} nobackup".Bash();
+							logger.LogWarning($"{device.Name} {device.Iface} marked as NOBACKUP");
+						}
 
                         int countRoutes = int.TryParse($"ip route show default dev {device.Iface} | wc -l".Bash(), out countRoutes) ? countRoutes : 0;
                         if (countRoutes == 0)
