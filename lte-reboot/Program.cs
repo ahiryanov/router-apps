@@ -10,10 +10,10 @@ using Microsoft.Extensions.Logging;
 namespace lte_reboot;
 class Program
 {
-    private static string _srv; //gittest
+    private static string _srv; 
     private static int maxRtt = 300;
     private static int maxLoss = 25;
-    private const int _restartCount = 5;
+    private const int _restartCount = 15;
     private const string _logFile = "/tmp/lte";
     static void Main(string[] args)
     {
@@ -74,17 +74,13 @@ class Program
                     logger.LogInformation($"{device.Name} ({device.Iface}) state {device.State}. Packet receive: {PacketReceive} # Packet loss %: {PacketLoss} # Average RTT ms: {AvgRtt}");
                     if (PacketLoss > maxLoss || AvgRtt > maxRtt)
                     {
-                        if (mptcpV1)//section for MPTCPv1
-                        {
-                            var mptcpId = $"ip mptcp endpoint | grep {device.Iface} | awk '{{print $3}}'".Bash();
-                            $"ip mptcp endpoint del id {mptcpId}".Bash();
-                            //logger.LogInformation($"MPTCP NEW ID: {mptcpId}");
+						if (mptcpV1)//section for MPTCPv1
+						{
+							var mptcpId = $"ip mptcp endpoint | grep {device.Iface} | awk '{{print $3}}'".Bash();
+							$"ip mptcp endpoint change id {mptcpId} backup".Bash();
+							logger.LogWarning($"{device.Name} {device.Iface} marked as BACKUP");
                         }
-                        else //section for MPTCPv0
-                        {
-                            $"ip link set dev {device.Iface} multipath off".Bash();
-                        }
-                        
+                        /*
                         int countRoutesDevice = int.TryParse($"ip route show default dev {device.Iface} | wc -l".Bash(), out countRoutesDevice) ? countRoutesDevice : 0;
                         if (countRoutesDevice == 0)
                         {
@@ -99,10 +95,15 @@ class Program
                         }
                         $"ip route del default dev {device.Iface}".Bash();
                         logger.LogWarning($"{device.Name} {device.Iface} switched off multipath and default route");
+						*/
                     }
                     else
                     {
-                        $"ip link set dev {device.Iface} multipath on".Bash();
+						//$"ip link set dev {device.Iface} multipath on".Bash();
+						var mptcpId = $"ip mptcp endpoint | grep {device.Iface} | awk '{{print $3}}'".Bash();
+						$"ip mptcp endpoint change id {mptcpId} nobackup".Bash();
+						logger.LogWarning($"{device.Name} {device.Iface} marked as NOBACKUP");
+
                         int countRoutes = int.TryParse($"ip route show default dev {device.Iface} | wc -l".Bash(), out countRoutes) ? countRoutes : 0;
                         if (countRoutes == 0)
                         {
@@ -195,7 +196,7 @@ class Program
                 }
                 else
                 {
-                    if (currentCount == 3) //sim reboot in the middle of cycle
+                    if (currentCount == 7) //sim reboot in the middle of cycle
                     {
                         $"qmicli -p -d /dev/{deviceName} --uim-sim-power-off=1".Bash();
                         Thread.Sleep(1500);
