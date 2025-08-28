@@ -19,7 +19,7 @@ class Program
 	static int strideBytes = 16;        // авто: rows→WIDTH/8, pages→WIDTH
 	static int yRepeat = 2;             // повторять каждую строку N раз (для 128x64 fb на физ. 128x32 → N=2)
 	static PSF2 font = new PSF2();
-	static string fontPath = "font-14n.ttf";
+	static string fontPath = "font-v14n.ttf";
 
 	// ===== NEW: daemon/watch options =====
 	static bool daemon = false;
