@@ -1,0 +1,19 @@
+[Unit]
+Description=OLED fb0 status display
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/usr/sbin
+ExecStart=/usr/sbin/lcd-imx --daemon
+Restart=always
+Environment=DOTNET_GCHeapHardLimit=0x800000
+Environment=DOTNET_GCServer=0
+Environment=COMPlus_gcServer=0
+Environment=COMPlus_GCHeapCount=1
+RestartSec=5s
+User=root
+
+[Install]
+WantedBy=multi-user.target
