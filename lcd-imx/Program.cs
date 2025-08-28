@@ -123,7 +123,7 @@ class Program
 	{
 		int w1 = ((int)font.width + 1) * s1.Length - 1;
 		int x1 = Math.Max(0, (WIDTH - w1) / 2);
-		int y1 = 3;
+		int y1 = 4;
 		RenderText(x1, y1, s1);
 
 		int w2 = ((int)font.width + 1) * s2.Length - 1;
