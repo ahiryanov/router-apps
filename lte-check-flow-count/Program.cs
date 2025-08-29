@@ -28,7 +28,7 @@ class Program
             _srv = "cat /etc/openvpn/client/client.conf | grep \"^remote \" | awk '{{print $2}}'".Bash().Trim();
             
         var flowCount = $"ss -Hntp state established dst {_srv}".Bash().Trim().Split('\r', '\n').Length;
-        var routeCount = "ip mptcp endpoint show".Bash().Split('\r', '\n').Count(a => !a.Contains("backup"));
+        var routeCount = "ip mptcp endpoint show".Bash().Trim().Split('\r', '\n').Count(a => !a.Contains("backup"));
 
         if (flowCount != routeCount)
         {
