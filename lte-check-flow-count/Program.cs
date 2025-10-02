@@ -30,7 +30,7 @@ class Program
         var flowCount = $"ss -Hntp state established dst {_srv}".Bash().Trim().Split('\r', '\n').Length;
         var routeCount = "ip mptcp endpoint show".Bash().Trim().Split('\r', '\n').Count(a => !a.Contains("backup"));
 
-        if (flowCount != routeCount)
+        if (flowCount < routeCount)
         {
             logger.LogWarning($"Flow count = {flowCount}\nMultipath count = {routeCount}");
             logger.LogWarning("Flow NOT equal routes!");
