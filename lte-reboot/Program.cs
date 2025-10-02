@@ -66,9 +66,9 @@ class Program
                 case "connected":
                     var ping = $"ping {_srv} -I {device.Iface} -A -w 1 -q -s 1400".Bash();
                     int PacketReceive =
-                        int.TryParse(new Regex(@"(\w+)\s" + "packets received").Match(ping).Groups[1].Value, out PacketReceive) ? PacketReceive : 0;
-                    int PacketLoss =
-                        int.TryParse(new Regex(@"(\d+)%\s" + "packet loss").Match(ping).Groups[1].Value, out PacketLoss) ? PacketLoss : 100;
+                        int.TryParse(new Regex(@"(\w+)\s" + "received").Match(ping).Groups[1].Value, out PacketReceive) ? PacketReceive : 0;
+                    double PacketLoss =
+                        double.TryParse(new Regex( @"([\d.,]+)%\s*packet\s+loss").Match(ping).Groups[1].Value, out PacketLoss) ? PacketLoss : 100;
                     int AvgRtt =
                         int.TryParse(new Regex("/" + @"(\d+)" + ".").Match(ping).Groups[1].Value, out AvgRtt) ? AvgRtt : 10000;
                     logger.LogInformation($"{device.Name} ({device.Iface}) state {device.State}. Packet receive: {PacketReceive} # Packet loss %: {PacketLoss} # Average RTT ms: {AvgRtt}");
