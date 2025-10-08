@@ -9,7 +9,7 @@ namespace lte_check_flow_count;
 class Program
 {
     private static string _srv;
-    private const int _restartCount = 10;
+    private const int _restartCount = 15;
     private const string _logFile = "/tmp/flow-restart";
     private const string _ovpnUnit2 = "openvpn-client@client.service";
 
@@ -33,7 +33,7 @@ class Program
         if (flowCount < routeCount)
         {
             logger.LogWarning($"Flow count = {flowCount}\nMultipath count = {routeCount}");
-            logger.LogWarning("Flow NOT equal routes!");
+            logger.LogWarning("Flow NOT equal routes! Restarting OpenVPN");
             File.WriteAllText(_logFile, "1");
             $"systemctl -q restart {_ovpnUnit2}".Bash();
             Thread.Sleep(1000);
