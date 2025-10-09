@@ -163,13 +163,13 @@ class Program
 
     static string ConnectionDown(string deviceName)
     {
-        return $"nmcli -w 15 connection down {deviceName}-conn".Bash();
+        return $"nmcli -w 10 connection down {deviceName}-conn".Bash();
     }
     static bool ConnectionUp(string deviceName, ILogger logger)
     {
         string resetModemlog = $"{_logFile}-{deviceName}-reset";
         bool successUp = true;
-        var response = $"nmcli -w 15 connection up {deviceName}-conn".Bash();
+        var response = $"nmcli -w 10 connection up {deviceName}-conn".Bash();
         if (response.ToLower().Contains("failed") || response.ToLower().Contains("timeout"))
         {
             successUp = false;
