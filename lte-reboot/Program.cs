@@ -37,9 +37,7 @@ class Program
         });
         ILogger logger = loggerFactory.CreateLogger("main");
         bool mptcpV1 = isMPTCPv1()!.Value;
-        logger.LogInformation(mptcpV1?"MPTCPv1":"MPTCPv0");
-        logger.LogInformation($"Detected server ip: {_srv}");
-        logger.LogInformation($"Current thresholds. Max loss {maxLoss}, Max rtt {maxRtt}");
+		bool isPingIputils = $"ping -V".Bash().Contains("iputils");
         var devices = new List<Device>();
         var devices_raw = "nmcli -f DEVICE,STATE -t device".Bash().Split('\r', '\n');
 
@@ -56,7 +54,7 @@ class Program
                 devices.Add(device);
             }
         }
-        logger.LogInformation($"Device recognized count: {devices.Count}");
+        logger.LogInformation((mptcpV1?"MPTCPv1":"MPTCPv0") + $" # Device count: {devices.Count}" + $" # server ip: {_srv}" + $" # Max loss {maxLoss}, Max rtt {maxRtt}" + " # Ping "+(isPingIputils?"iputils":"busybox"));
         devices = devices.OrderBy(m => m.Name).ToList();
 
         foreach (var device in devices)
@@ -64,13 +62,22 @@ class Program
             switch (device.State)
             {
                 case "connected":
-                    var ping = $"ping {_srv} -I {device.Iface} -A -w 1 -q -s 1400".Bash();
-                    int PacketReceive =
-                        int.TryParse(new Regex(@"(\w+)\s" + "received").Match(ping).Groups[1].Value, out PacketReceive) ? PacketReceive : 0;
-                    double PacketLoss =
-                        double.TryParse(new Regex( @"([\d.,]+)%\s*packet\s+loss").Match(ping).Groups[1].Value, out PacketLoss) ? PacketLoss : 100;
-                    int AvgRtt =
-                        int.TryParse(new Regex("/" + @"(\d+)" + ".").Match(ping).Groups[1].Value, out AvgRtt) ? AvgRtt : 10000;
+					var ping = $"ping {_srv} -I {device.Iface} -A -w 1 -q -s 1400".Bash();
+					int PacketReceive = 0;
+					double PacketLoss = 100;
+					int AvgRtt = 10000;
+					if (isPingIputils)
+					{
+						int.TryParse(new Regex(@"(\w+)\s" + "received").Match(ping).Groups[1].Value, out PacketReceive);
+						double.TryParse(new Regex(@"([\d.,]+)%\s*packet\s+loss").Match(ping).Groups[1].Value, out PacketLoss);
+						int.TryParse(new Regex("/" + @"(\d+)" + ".").Match(ping).Groups[1].Value, out AvgRtt);
+					}
+					else
+					{
+						int.TryParse(new Regex(@"(\w+)\s" + "packets received").Match(ping).Groups[1].Value, out PacketReceive);
+						double.TryParse(new Regex(@"(\d+)%\s" + "packet loss").Match(ping).Groups[1].Value, out PacketLoss);
+						int.TryParse(new Regex("/" + @"(\d+)" + ".").Match(ping).Groups[1].Value, out AvgRtt);
+					}
 					//calculate route parameters for metric change
 					var route = $"ip route show default dev {device.Iface}".Bash().Trim();
 					var gateway = route.Split()[2];
