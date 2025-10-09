@@ -71,18 +71,25 @@ class Program
                         double.TryParse(new Regex( @"([\d.,]+)%\s*packet\s+loss").Match(ping).Groups[1].Value, out PacketLoss) ? PacketLoss : 100;
                     int AvgRtt =
                         int.TryParse(new Regex("/" + @"(\d+)" + ".").Match(ping).Groups[1].Value, out AvgRtt) ? AvgRtt : 10000;
-                    logger.LogInformation($"{device.Name} ({device.Iface}) state {device.State}. Packet receive: {PacketReceive} # Packet loss %: {PacketLoss} # Average RTT ms: {AvgRtt}");
+					//calculate route parameters for metric change
+					var route = $"ip route show default dev {device.Iface}".Bash().Trim();
+					var gateway = route.Split()[2];
+					int.TryParse(route.Split().Last(),out var metric);
+					//---------------------------------------------
+                    logger.LogInformation($"{device.Name} ({device.Iface}) state {device.State}. Receive: {PacketReceive} # Loss %: {PacketLoss} # RTT ms: {AvgRtt}");
                     if (PacketLoss > maxLoss || AvgRtt > maxRtt)
-                    {
+					{
 						if (mptcpV1)//section for MPTCPv1
 						{
 							var mptcpId = $"ip mptcp endpoint | grep {device.Iface} | awk '{{print $3}}'".Bash().Trim();
 							$"ip mptcp endpoint change id {mptcpId} backup".Bash();
+							$"ip route delete default dev {device.Iface}".Bash();
+							$"ip route replace default via {gateway} dev {device.Iface} proto static metric {metric+10}".Bash();
 							logger.LogWarning($"{device.Name} {device.Iface} marked as BACKUP");
-                        }
-                    }
-                    else
-                    {
+						}
+					}
+					else
+					{
 						int isBackup = int.TryParse($"ip mptcp endpoint | grep {device.Iface} | grep backup | wc -l".Bash(), out isBackup) ? isBackup : 0;
 						if (isBackup == 1)
 						{
@@ -90,20 +97,18 @@ class Program
 							$"ip mptcp endpoint change id {mptcpId} nobackup".Bash();
 							logger.LogWarning($"{device.Name} {device.Iface} marked as NOBACKUP");
 						}
-
-                        int countRoutes = int.TryParse($"ip route show default dev {device.Iface} | wc -l".Bash(), out countRoutes) ? countRoutes : 0;
-                        if (countRoutes == 0)
-                        {
-                            var refreshRouteIsUp = ConnectionUp(device.Name, logger);
-                            if (!refreshRouteIsUp)
-                            {
-                                logger.LogError($"Refresh route failed {device.Name} ({device.Iface})");
-                                ConnectionDown(device.Name);
-                            }
-                            else
-                                logger.LogWarning($"Refresh route success {device.Name} ({device.Iface})");
-                        }
-                    }
+						if (string.IsNullOrWhiteSpace(route) || metric > 710)
+						{
+							var refreshRouteIsUp = ConnectionUp(device.Name, logger);
+							if (!refreshRouteIsUp)
+							{
+								logger.LogError($"Refresh route failed {device.Name} ({device.Iface})");
+								ConnectionDown(device.Name);
+							}
+							else
+								logger.LogWarning($"Refresh route success {device.Name} ({device.Iface})");
+						}
+					}
                     break;
 
                 case "connecting (prepare)":
