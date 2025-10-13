@@ -78,22 +78,27 @@ class Program
 						double.TryParse(new Regex(@"(\d+)%\s" + "packet loss").Match(ping).Groups[1].Value, out PacketLoss);
 						int.TryParse(new Regex("/" + @"(\d+)" + ".").Match(ping).Groups[1].Value, out AvgRtt);
 					}
+					AvgRtt = AvgRtt == 0 ? 10000 : AvgRtt;
 					//calculate route parameters for metric change
 					var route = $"ip route show default dev {device.Iface}".Bash().Trim();
 					var gateway = route.Split()[2];
 					int.TryParse(route.Split().Last(),out var metric);
 					//---------------------------------------------
                     logger.LogInformation($"{device.Name} ({device.Iface}) state {device.State}. Receive: {PacketReceive} # Loss %: {PacketLoss} # RTT ms: {AvgRtt}");
-                    if (PacketLoss > maxLoss || AvgRtt > maxRtt)
+					if (PacketLoss > maxLoss || AvgRtt > maxRtt)
 					{
-						if (mptcpV1)//section for MPTCPv1
+						var mptcpId = $"ip mptcp endpoint | grep {device.Iface} | awk '{{print $3}}'".Bash().Trim();
+						if (PacketLoss == 100 && AvgRtt == 10000 && metric < 1000)
 						{
-							var mptcpId = $"ip mptcp endpoint | grep {device.Iface} | awk '{{print $3}}'".Bash().Trim();
-							$"ip mptcp endpoint change id {mptcpId} backup".Bash();
-							$"ip route delete default dev {device.Iface}".Bash();
-							$"ip route replace default via {gateway} dev {device.Iface} proto static metric {metric+10}".Bash();
-							logger.LogWarning($"{device.Name} {device.Iface} marked as BACKUP");
+							var routeNum = 55;
+							int.TryParse(mptcpId,out routeNum);
+							$"nmcli connection modify {device.Name}-conn ipv4.route-metric {1000 + routeNum} && nmcli device connect {device.Name}".Bash();
+							logger.LogWarning($"{device.Name} {device.Iface} DEFAULT ROUTE DECRASE");
+							Thread.Sleep(1000);
 						}
+						mptcpId = $"ip mptcp endpoint | grep {device.Iface} | awk '{{print $3}}'".Bash().Trim();
+						$"ip mptcp endpoint change id {mptcpId} backup".Bash();
+						logger.LogWarning($"{device.Name} {device.Iface} marked as BACKUP");
 					}
 					else
 					{
@@ -104,8 +109,10 @@ class Program
 							$"ip mptcp endpoint change id {mptcpId} nobackup".Bash();
 							logger.LogWarning($"{device.Name} {device.Iface} marked as NOBACKUP");
 						}
-						if (string.IsNullOrWhiteSpace(route) || metric > 710)
+						if (string.IsNullOrWhiteSpace(route) || metric > 1000)
 						{
+							$"nmcli connection modify {device.Name}-conn ipv4.route-metric -1".Bash();
+							logger.LogWarning($"{device.Name} {device.Iface} DEFAULT ROUTE RETURN TRY");
 							var refreshRouteIsUp = ConnectionUp(device.Name, logger);
 							if (!refreshRouteIsUp)
 							{
@@ -119,13 +126,12 @@ class Program
                     break;
 
                 case "connecting (prepare)":
-                    logger.LogWarning($"Trying reset connection {device.Name} ({device.Iface}). Reason: {device.State}");
                     ConnectionDown(device.Name);
                     Thread.Sleep(2000);
                     var prepareIsUp = ConnectionUp(device.Name, logger);
                     if (!prepareIsUp)
                     {
-                        logger.LogError($"Failed activation of connecting (prepare) {device.Name}");
+                        logger.LogWarning($"Failed activation of connecting (prepare) {device.Name}");
                         ConnectionDown(device.Name);
                     }
                     else
@@ -133,11 +139,10 @@ class Program
                     break;
 
                 case "disconnected":
-                    logger.LogWarning($"Trying reset connection {device.Name} ({device.Iface}). Reason: {device.State}");
                     var disconnectIsUp = ConnectionUp(device.Name, logger);
                     if (!disconnectIsUp)
                     {
-                        logger.LogError($"Activation failed of disconnected {device.Name}");
+                        logger.LogWarning($"Activation failed of disconnected {device.Name}");
                         ConnectionDown(device.Name);
                     }
                     else
@@ -163,13 +168,13 @@ class Program
 
     static string ConnectionDown(string deviceName)
     {
-        return $"nmcli -w 10 connection down {deviceName}-conn".Bash();
+        return $"nmcli -w 8 connection down {deviceName}-conn".Bash();
     }
     static bool ConnectionUp(string deviceName, ILogger logger)
     {
         string resetModemlog = $"{_logFile}-{deviceName}-reset";
         bool successUp = true;
-        var response = $"nmcli -w 10 connection up {deviceName}-conn".Bash();
+        var response = $"nmcli -w 8 connection up {deviceName}-conn".Bash();
         if (response.ToLower().Contains("failed") || response.ToLower().Contains("timeout"))
         {
             successUp = false;

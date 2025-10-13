@@ -21,6 +21,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "persist-config", "persist-c
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "lcd-imx", "lcd-imx\lcd-imx.csproj", "{69D1087E-5A2C-4555-8E11-18BB886EEDD1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "lte-agent", "lte-agent\lte-agent.csproj", "{403712C9-33DD-42E4-8D9C-18B50A0406B1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -63,6 +65,10 @@ Global
 		{69D1087E-5A2C-4555-8E11-18BB886EEDD1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{69D1087E-5A2C-4555-8E11-18BB886EEDD1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{69D1087E-5A2C-4555-8E11-18BB886EEDD1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{403712C9-33DD-42E4-8D9C-18B50A0406B1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{403712C9-33DD-42E4-8D9C-18B50A0406B1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{403712C9-33DD-42E4-8D9C-18B50A0406B1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{403712C9-33DD-42E4-8D9C-18B50A0406B1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
