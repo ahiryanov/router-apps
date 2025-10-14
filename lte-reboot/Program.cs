@@ -88,10 +88,10 @@ class Program
 					if (PacketLoss > maxLoss || AvgRtt > maxRtt)
 					{
 						var mptcpId = $"ip mptcp endpoint | grep {device.Iface} | awk '{{print $3}}'".Bash().Trim();
-						if (PacketLoss == 100 && AvgRtt == 10000 && metric < 1000)
+						if (PacketLoss == 0 || AvgRtt == 10000 && metric < 1000)
 						{
 							var routeNum = 55;
-							int.TryParse(mptcpId,out routeNum);
+							int.TryParse(mptcpId, out routeNum);
 							$"nmcli connection modify {device.Name}-conn ipv4.route-metric {1000 + routeNum} && nmcli device connect {device.Name}".Bash();
 							logger.LogWarning($"{device.Name} {device.Iface} DEFAULT ROUTE DECRASE");
 							Thread.Sleep(1000);
@@ -122,6 +122,7 @@ class Program
 							else
 								logger.LogWarning($"Refresh route success {device.Name} ({device.Iface})");
 						}
+						$"ip route replace {_srv} via {gateway}".Bash();
 					}
                     break;
 
