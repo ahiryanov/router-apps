@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+
 using System.Text.RegularExpressions;
 using System.Threading;
 using Microsoft.Extensions.Logging;
@@ -13,30 +14,29 @@ class Program
     private static string _srv; 
     private static int maxRtt = 300;
     private static int maxLoss = 25;
-    private const int _restartCount = 15;
+    private const int _restartCount = 20;
     private const string _logFile = "/tmp/lte";
     static void Main(string[] args)
     {
-        
-        //SRV detect 
-        if (File.Exists("/etc/openvpn/client.conf"))
-            _srv = "cat /etc/openvpn/client.conf | grep \"^remote \" | awk '{{print $2}}'".Bash().Trim();
-        if (File.Exists("/etc/openvpn/client/client.conf"))
-            _srv = "cat /etc/openvpn/client/client.conf | grep \"^remote \" | awk '{{print $2}}'".Bash().Trim();
+		using var loggerFactory = LoggerFactory.Create(builder =>
+        {
+            builder
+                .AddSystemdConsole();
+        });
+        ILogger logger = loggerFactory.CreateLogger("main");
+		//### SRV detect ####
+		if (File.Exists("/etc/openvpn/client/client.conf"))
+            _srv = "cat /etc/openvpn/client/client.conf | grep \"^remote \" | awk '{{print $2}}'".Bash();
+		//### Startup checks ####
+		CheckMultipleEndpoints(logger);
+		RecreateDeadSubflow(logger);
 
         if (args.Length == 2)
         {
             int.TryParse(args[0], out maxLoss);
             int.TryParse(args[1], out maxRtt);
         }
-
-        using var loggerFactory = LoggerFactory.Create(builder =>
-        {
-            builder
-                .AddSystemdConsole();
-        });
-        ILogger logger = loggerFactory.CreateLogger("main");
-        bool mptcpV1 = isMPTCPv1()!.Value;
+        
 		bool isPingIputils = $"ping -V".Bash().Contains("iputils");
         var devices = new List<Device>();
         var devices_raw = "nmcli -f DEVICE,STATE -t device".Bash().Split('\r', '\n');
@@ -51,10 +51,14 @@ class Program
             if (device.Name.Contains("cdc-wdm"))
             {
                 device.Iface = $"qmicli --silent -d /dev/{device.Name} --get-wwan-iface".Bash().Replace("\n", "");
+				if (TryParseRssi(device.Name, out var rssi)) 
+				{
+					device.Rssi = rssi;
+				}
                 devices.Add(device);
             }
         }
-        logger.LogInformation((mptcpV1?"MPTCPv1":"MPTCPv0") + $" # Device count: {devices.Count}" + $" # server ip: {_srv}" + $" # Max loss {maxLoss}, Max rtt {maxRtt}" + " # Ping "+(isPingIputils?"iputils":"busybox"));
+        logger.LogInformation($"Device count: {devices.Count}" + $" # server ip: {_srv}" + $" # Max loss {maxLoss}, Max rtt {maxRtt}" + " # Ping "+(isPingIputils?"iputils":"busybox"));
         devices = devices.OrderBy(m => m.Name).ToList();
 
         foreach (var device in devices)
@@ -79,61 +83,69 @@ class Program
 						int.TryParse(new Regex("/" + @"(\d+)" + ".").Match(ping).Groups[1].Value, out AvgRtt);
 					}
 					AvgRtt = AvgRtt == 0 ? 10000 : AvgRtt;
-					//calculate route parameters for metric change
-					var route = $"ip route show default dev {device.Iface}".Bash().Trim();
-					var gateway = route.Split()[2];
-					int.TryParse(route.Split().Last(),out var metric);
+
+					//calculate ip mptcp endpoint parameters
+					var endpoint = $"ip mptcp endpoint | grep {device.Iface}".Bash();
+					var endpointId = endpoint?.Split()[2];
+					var endpointAddr = endpoint?.Split().First();
+					var endpointIsBackup = endpoint.Contains("backup");
 					//---------------------------------------------
-                    logger.LogInformation($"{device.Name} ({device.Iface}) state {device.State}. Receive: {PacketReceive} # Loss %: {PacketLoss} # RTT ms: {AvgRtt}");
-					if (PacketLoss > maxLoss || AvgRtt > maxRtt)
+
+					//calculate route parameters
+					var route = $"ip route show {_srv} dev {device.Iface}".Bash();
+					var routeMetric = GetRouteMetric(route);
+					//---------------------------------------------
+					var num =  Regex.Match(device.Iface, @"\d+").Value;
+
+					var channelState = ComputeState(PacketLoss,AvgRtt,PacketReceive);
+
+                    logger.LogInformation($"{device.Name} ({device.Iface}) state {device.State}. Receive: {PacketReceive} # Loss %: {PacketLoss} # RTT ms: {AvgRtt} # ChannelState: {channelState} # RSSI: {device.Rssi}");
+
+					if (PacketLoss > maxLoss || AvgRtt > maxRtt || device.Rssi! < -77)
 					{
-						var mptcpId = $"ip mptcp endpoint | grep {device.Iface} | awk '{{print $3}}'".Bash().Trim();
-						if (PacketLoss == 0 || AvgRtt == 10000 && metric < 1000)
+						if (!string.IsNullOrWhiteSpace(route) && routeMetric < 1100)
 						{
-							var routeNum = 55;
-							int.TryParse(mptcpId, out routeNum);
-							$"nmcli connection modify {device.Name}-conn ipv4.route-metric {1000 + routeNum} && nmcli device connect {device.Name}".Bash();
-							logger.LogWarning($"{device.Name} {device.Iface} DEFAULT ROUTE DECRASE");
-							Thread.Sleep(1000);
+							$"ip route del {_srv} dev {device.Iface}".Bash();
+							$"ip route add {_srv} dev {device.Iface} metric {routeMetric + 1100}".Bash();
 						}
-						mptcpId = $"ip mptcp endpoint | grep {device.Iface} | awk '{{print $3}}'".Bash().Trim();
-						$"ip mptcp endpoint change id {mptcpId} backup".Bash();
+						$"ip mptcp endpoint change id {endpointId} backup".Bash();
 						logger.LogWarning($"{device.Name} {device.Iface} marked as BACKUP");
 					}
 					else
 					{
-						int isBackup = int.TryParse($"ip mptcp endpoint | grep {device.Iface} | grep backup | wc -l".Bash(), out isBackup) ? isBackup : 0;
-						if (isBackup == 1)
+						$"ip route del {_srv} dev {device.Iface}".Bash();
+						$"ip route replace {_srv} dev {device.Iface} metric {channelState}{num}".Bash();
+
+						if (endpointIsBackup)
 						{
-							var mptcpId = $"ip mptcp endpoint | grep {device.Iface} | awk '{{print $3}}'".Bash().Trim();
-							$"ip mptcp endpoint change id {mptcpId} nobackup".Bash();
-							logger.LogWarning($"{device.Name} {device.Iface} marked as NOBACKUP");
+							$"ip mptcp endpoint del id {endpointId}".Bash();
+							Thread.Sleep(500);
+							$"ip mptcp endpoint add {endpointAddr} dev {device.Iface} subflow".Bash();
+							Thread.Sleep(500);
+							logger.LogWarning($"{device.Name} {device.Iface} subflow recreated");
 						}
-						if (string.IsNullOrWhiteSpace(route) || metric > 1000)
+						if (string.IsNullOrWhiteSpace(route))
 						{
-							$"nmcli connection modify {device.Name}-conn ipv4.route-metric -1".Bash();
-							logger.LogWarning($"{device.Name} {device.Iface} DEFAULT ROUTE RETURN TRY");
 							var refreshRouteIsUp = ConnectionUp(device.Name, logger);
 							if (!refreshRouteIsUp)
 							{
 								logger.LogError($"Refresh route failed {device.Name} ({device.Iface})");
-								ConnectionDown(device.Name);
+								ConnectionDown(device.Name,logger);
 							}
 							else
 								logger.LogWarning($"Refresh route success {device.Name} ({device.Iface})");
 						}
-						$"ip route replace {_srv} via {gateway}".Bash();
 					}
                     break;
 
                 case "connecting (prepare)":
-                    ConnectionDown(device.Name);
+                    ConnectionDown(device.Name,logger);
                     Thread.Sleep(2000);
                     var prepareIsUp = ConnectionUp(device.Name, logger);
                     if (!prepareIsUp)
                     {
                         logger.LogWarning($"Failed activation of connecting (prepare) {device.Name}");
-                        ConnectionDown(device.Name);
+                        ConnectionDown(device.Name,logger);
                     }
                     else
                         logger.LogWarning($"Success activation of connecting (prepare) {device.Name}");
@@ -144,7 +156,7 @@ class Program
                     if (!disconnectIsUp)
                     {
                         logger.LogWarning($"Activation failed of disconnected {device.Name}");
-                        ConnectionDown(device.Name);
+                        ConnectionDown(device.Name,logger);
                     }
                     else
                         logger.LogWarning($"Success activation of disconnected {device.Name}");
@@ -158,24 +170,82 @@ class Program
         }
     }
 
-    static bool? isMPTCPv1()
-    {
-        if (File.Exists("/proc/sys/net/mptcp/enabled"))
-            return true;
-        if (File.Exists("/proc/sys/net/mptcp/mptcp_enabled"))
-            return false;
-        return null;
-    }
+	static void CheckMultipleEndpoints(ILogger logger)
+	{
+		var endpoints = $"ip mptcp endpoint".Bash();
+		var lines = endpoints
+            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(s => s.Trim())
+            .ToList();
+		var rx = new Regex(@"\bid\s+(\d+).*?\bdev\s+(\S+)", RegexOptions.IgnoreCase);
+		var parsed = new List<(int Id, string Dev, string Line)>();
+		foreach (var line in lines)
+        {
+            var m = rx.Match(line);
+            if (!m.Success) continue;
+            int id = int.Parse(m.Groups[1].Value);
+            string dev = m.Groups[2].Value;
+            parsed.Add((id, dev, line));
+        }
+		var groups = parsed.GroupBy(p => p.Dev, StringComparer.Ordinal);
+		foreach (var g in groups)
+        {
+            if (g.Count() <= 1) continue;
 
-    static string ConnectionDown(string deviceName)
+            int maxId = g.Max(x => x.Id);
+            logger.LogError($"{g.Key}: has {g.Count()} endpoints. Leave id={maxId}, delete rest.");
+
+            foreach (var e in g.Where(x => x.Id != maxId).OrderBy(x => x.Id))
+            {
+                $"ip mptcp endpoint delete id {e.Id}".Bash();
+            }
+        }
+	}
+
+	static void RemoveDeadEndpoint(string iface, ILogger logger)
+	{
+		var endpoint = $"ip mptcp endpoint | grep {iface}".Bash();
+		var rx = new Regex(@"\bid\s+(\d+).*?\bdev\s+(\S+)", RegexOptions.IgnoreCase);
+		var m = rx.Match(endpoint);
+		if (m.Success)
+		{
+			var id = m.Groups[1].Value;
+			var dev = m.Groups[2].Value;
+			$"ip mptcp endpoint delete id {id}".Bash();
+			logger.LogWarning($"Remove dead endpoint {dev} id {id}");
+		}
+	}
+
+	static void RecreateDeadSubflow(ILogger logger)
+	{
+		var endpointsRaw = $"ip mptcp endpoint".Bash();
+		var endpoints = ParseEndpoints(endpointsRaw);
+		var activeEndpoints = endpoints.Where(e => !e.IsBackup).ToList();
+		var localIpInUse = GetSsIp(_srv);
+
+		foreach (var ep in activeEndpoints)
+        {
+            bool inUse = localIpInUse.Contains(ep.Ip);
+            if (inUse) continue;
+			logger.LogError($"Endpoint id={ep.Id} ip={ep.Ip} dev={ep.Dev} flags=[{string.Join(' ', ep.Flags)}] -> {(inUse ? "in use" : " NOT in use")}");
+            $"ip mptcp endpoint delete id {ep.Id}".Bash();
+			Thread.Sleep(500);
+            $"ip mptcp endpoint add {ep.Ip} dev {ep.Dev} subflow".Bash();
+			logger.LogError($"Recreate dead endpoint {ep}");
+        }
+
+	}
+
+	static string ConnectionDown(string deviceName, ILogger logger)
     {
-        return $"nmcli -w 8 connection down {deviceName}-conn".Bash();
+		RemoveDeadEndpoint(deviceName,logger);
+        return $"nmcli -w 10 connection down {deviceName}-conn".Bash();
     }
     static bool ConnectionUp(string deviceName, ILogger logger)
     {
         string resetModemlog = $"{_logFile}-{deviceName}-reset";
         bool successUp = true;
-        var response = $"nmcli -w 8 connection up {deviceName}-conn".Bash();
+        var response = $"nmcli -w 10 connection up {deviceName}-conn".Bash();
         if (response.ToLower().Contains("failed") || response.ToLower().Contains("timeout"))
         {
             successUp = false;
@@ -219,6 +289,134 @@ class Program
         }
         return successUp;
     }
+
+	public static bool TryParseRssi(string deviceName, out int rssi)
+    {
+		var qmicliOutput = $"qmicli -p -d /dev/{deviceName} --nas-get-signal-info".Bash();
+        rssi = 0;
+        if (string.IsNullOrWhiteSpace(qmicliOutput))
+            return false;
+
+        var m = Regex.Match(qmicliOutput,
+            @"\bRSSI:\s*'?\s*(?<v>[-+]?\d+)\s*dBm",
+            RegexOptions.IgnoreCase);
+
+        if (!m.Success) return false;
+        return int.TryParse(m.Groups["v"].Value, out rssi);
+    }
+
+	static int GetRouteMetric(string route)
+	{
+		var m = Regex.Match(route ?? string.Empty, @"\bmetric\s+(\d+)\b");
+    	if (m.Success && int.TryParse(m.Groups[1].Value, out var metric))
+        	return metric;
+    	return 0;
+	}
+
+	static int ComputeState(double packetLoss, int avgRttMs, int receivedPackets)
+    {
+        const int RttGoodMs = 50;
+        const int RttBadMs  = 300;
+
+        const int PktsMinPerSec  = 2;
+        const int PktsGoodPerSec = 25;
+
+        const double WLoss = 0.55;
+        const double WRtt  = 0.30;
+        const double WPkts = 0.15;
+
+        packetLoss     = Clamp(packetLoss, 0, 100);
+        avgRttMs       = Math.Max(0, avgRttMs);
+        receivedPackets = Math.Max(0, receivedPackets);
+
+        if (receivedPackets == 0 || packetLoss == 100)
+            return 99;
+
+        double sLoss = packetLoss;
+
+        double sRtt = 100.0 * (avgRttMs - RttGoodMs) / (RttBadMs - RttGoodMs);
+        sRtt = Clamp(sRtt, 0.0, 100.0);
+
+        double sPkts;
+        if (receivedPackets >= PktsGoodPerSec) sPkts = 0.0;
+        else if (receivedPackets <= PktsMinPerSec) sPkts = 100.0;
+        else
+            sPkts = 100.0 * (PktsGoodPerSec - receivedPackets) / (PktsGoodPerSec - PktsMinPerSec);
+
+        double state100 =
+            WLoss * sLoss +
+            WRtt  * sRtt  +
+            WPkts * sPkts;
+
+        int returnState = (int)Math.Round(state100);
+        returnState = Math.Max(0, Math.Min(99, returnState));
+        return returnState;
+    }
+    private static double Clamp(double v, double lo, double hi) => (v < lo) ? lo : (v > hi) ? hi : v;
+
+
+	private record Endpoint(int Id, string Ip, string Dev, bool IsBackup, IReadOnlyList<string> Flags, string RawTail);
+
+    private static List<Endpoint> ParseEndpoints(string text)
+    {
+        var list = new List<Endpoint>();
+        if (string.IsNullOrWhiteSpace(text)) return list;
+
+        var lineRx = new Regex(@"^\s*(?<ip>\d{1,3}(?:\.\d{1,3}){3})\s+id\s+(?<id>\d+)\s*(?<tail>.*)$",
+                               RegexOptions.IgnoreCase | RegexOptions.Multiline);
+
+        foreach (Match m in lineRx.Matches(text))
+        {
+            string ip = m.Groups["ip"].Value;
+            int id = int.Parse(m.Groups["id"].Value);
+            string tail = (m.Groups["tail"].Value ?? "").Trim();
+
+            var devRx = new Regex(@"\bdev\s+(?<dev>\S+)", RegexOptions.IgnoreCase);
+            var devMatch = devRx.Match(tail);
+            if (!devMatch.Success) continue;
+            string dev = devMatch.Groups["dev"].Value;
+
+            string flagsPart = tail;
+            int devIdx = flagsPart.IndexOf(devMatch.Value, StringComparison.OrdinalIgnoreCase);
+            if (devIdx >= 0) flagsPart = flagsPart.Substring(0, devIdx).Trim();
+            var flags = flagsPart.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)
+                                 .Select(f => f.ToLowerInvariant())
+                                 .ToList();
+
+            bool isBackup = flags.Contains("backup");
+
+            list.Add(new Endpoint(id, ip, dev, isBackup, flags, tail));
+        }
+        return list;
+    }
+
+	private static HashSet<string> GetSsIp(string srv)
+    {
+		var ssOut = $"ss -tHn state established dst {srv}".Bash();
+        var set = new HashSet<string>(StringComparer.Ordinal);
+        if (string.IsNullOrWhiteSpace(ssOut)) return set;
+        var rx = new Regex(@"^\s*\d+\s+\d+\s+(?<local>\S+)\s+(?<peer>\S+)", RegexOptions.Multiline);
+
+        foreach (Match m in rx.Matches(ssOut))
+        {
+            string local = m.Groups["local"].Value;
+            string ip = TrimToIp(local);
+            if (!string.IsNullOrEmpty(ip))
+                set.Add(ip);
+        }
+        return set;
+    }
+
+	private static string TrimToIp(string endpoint)
+    {
+        int pct = endpoint.IndexOf('%');
+        int colon = endpoint.IndexOf(':');
+        int cut = -1;
+        if (pct >= 0 && colon >= 0) cut = Math.Min(pct, colon);
+        else if (pct >= 0) cut = pct;
+        else if (colon >= 0) cut = colon;
+        return (cut >= 0 ? endpoint.Substring(0, cut) : endpoint).Trim();
+    }
 }
 
 class Device
@@ -226,11 +424,13 @@ class Device
     public string Name { get; set; }
     public string State { get; set; }
     public string Iface { get; set; }
+	public int Rssi { get; set; }
     public override string ToString()
     {
-        return $"{Name} {State} {Iface}";
+        return $"{Name} {State} {Iface} RSSI {Rssi}";
     }
 }
+
 
 public static class ShellHelper
 {
@@ -254,6 +454,6 @@ public static class ShellHelper
         string result = process.StandardOutput.ReadToEnd();
         process.WaitForExit();
 
-        return result;
+        return result.Trim();
     }
 }
