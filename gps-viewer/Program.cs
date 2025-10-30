@@ -19,7 +19,15 @@ public class Program
     }
 
     public static IHostBuilder CreateHostBuilder(string[] args) =>
-        Host.CreateDefaultBuilder(args)
+		Host.CreateDefaultBuilder(args)
+			.ConfigureLogging(i =>
+            {
+                i.AddFilter((provider, category, logLevel) =>
+                {
+                    return false;
+                });
+
+            })
             .ConfigureWebHostDefaults(webBuilder =>
             {
                 webBuilder.UseStartup<Startup>();
