@@ -88,7 +88,7 @@ class Program
 					var endpoint = $"ip mptcp endpoint | grep {device.Iface}".Bash();
 					var endpointId = endpoint?.Split()?[2];
 					var endpointAddr = endpoint?.Split()?.First();
-					var endpointIsBackup = endpoint.Contains("backup");
+					var endpointIsBackup = endpoint?.Contains("backup");
 					//---------------------------------------------
 
 					//calculate route parameters
