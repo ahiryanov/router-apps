@@ -116,7 +116,7 @@ class Program
 						$"ip route del {_srv} dev {device.Iface}".Bash();
 						$"ip route replace {_srv} dev {device.Iface} metric {channelState}{num}".Bash();
 
-						if (endpointIsBackup)
+						if ((bool)endpointIsBackup)
 						{
 							$"ip mptcp endpoint del id {endpointId}".Bash();
 							Thread.Sleep(500);
