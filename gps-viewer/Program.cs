@@ -20,21 +20,6 @@ public class Program
 
     public static IHostBuilder CreateHostBuilder(string[] args) =>
         Host.CreateDefaultBuilder(args)
-            .ConfigureLogging(i =>
-            {
-                i.AddFilter((provider, category, logLevel) =>
-                {
-                    if (category.Contains("Microsoft.AspNetCore.Hosting") && logLevel >= LogLevel.Information)
-                    {
-                        return true;
-                    }
-
-                    if (category.Contains("Microsoft.AspNetCore") && logLevel >= LogLevel.Warning)
-                        return true;
-                    return false;
-                });
-
-            })
             .ConfigureWebHostDefaults(webBuilder =>
             {
                 webBuilder.UseStartup<Startup>();
