@@ -102,7 +102,7 @@ class Program
 
                     logger.LogInformation($"{device.Name} ({device.Iface}) state {device.State}. Receive: {PacketReceive} # Loss %: {PacketLoss} # RTT ms: {AvgRtt} # ChannelState: {channelState} # RSSI: {device.Rssi} # Mode: {device.MobileMode}");
 
-					if (PacketLoss > maxLoss || AvgRtt > maxRtt || device.Rssi! < -77 || device.MobileMode != "LTE")
+					if (PacketLoss > maxLoss || AvgRtt > maxRtt || device.Rssi! < -77 || (device.MobileMode != "LTE" && device.MobileMode != "Unknown"))
 					{
 						if (!string.IsNullOrWhiteSpace(route) && routeMetric < 1100)
 						{
@@ -308,10 +308,10 @@ class Program
 
 	public static string ParseMobileMode(string qmicliOutput)
     {
-        if (string.IsNullOrWhiteSpace(qmicliOutput))
-            return "Unknown";
+        if (string.IsNullOrWhiteSpace(qmicliOutput) || !qmicliOutput.Contains("Successfully"))
+			return "Unknown";
 
-		return qmicliOutput.Split('\r', '\n')?[1].Replace(":","");
+		return qmicliOutput.Split('\r', '\n')[1].Replace(":", "");
     }
 
 	static int GetRouteMetric(string route)
