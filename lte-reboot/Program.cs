@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-
 using System.Text.RegularExpressions;
 using System.Threading;
 using Microsoft.Extensions.Logging;
@@ -51,10 +50,12 @@ class Program
             if (device.Name.Contains("cdc-wdm"))
             {
                 device.Iface = $"qmicli --silent -d /dev/{device.Name} --get-wwan-iface".Bash().Replace("\n", "");
-				if (TryParseRssi(device.Name, out var rssi)) 
+				var qmicliOutput = $"qmicli -p -d /dev/{device.Name} --nas-get-signal-info".Bash();
+				if (TryParseRssi(qmicliOutput, out var rssi)) 
 				{
 					device.Rssi = rssi;
 				}
+				device.MobileMode = ParseMobileMode(qmicliOutput);
                 devices.Add(device);
             }
         }
@@ -99,9 +100,9 @@ class Program
 
 					var channelState = ComputeState(PacketLoss,AvgRtt,PacketReceive);
 
-                    logger.LogInformation($"{device.Name} ({device.Iface}) state {device.State}. Receive: {PacketReceive} # Loss %: {PacketLoss} # RTT ms: {AvgRtt} # ChannelState: {channelState} # RSSI: {device.Rssi}");
+                    logger.LogInformation($"{device.Name} ({device.Iface}) state {device.State}. Receive: {PacketReceive} # Loss %: {PacketLoss} # RTT ms: {AvgRtt} # ChannelState: {channelState} # RSSI: {device.Rssi} # Mode: {device.MobileMode}");
 
-					if (PacketLoss > maxLoss || AvgRtt > maxRtt || device.Rssi! < -77)
+					if (PacketLoss > maxLoss || AvgRtt > maxRtt || device.Rssi! < -77 || device.MobileMode != "LTE")
 					{
 						if (!string.IsNullOrWhiteSpace(route) && routeMetric < 1100)
 						{
@@ -290,9 +291,9 @@ class Program
         return successUp;
     }
 
-	public static bool TryParseRssi(string deviceName, out int rssi)
+	public static bool TryParseRssi(string qmicliOutput, out int rssi)
     {
-		var qmicliOutput = $"qmicli -p -d /dev/{deviceName} --nas-get-signal-info".Bash();
+		
         rssi = 0;
         if (string.IsNullOrWhiteSpace(qmicliOutput))
             return false;
@@ -303,6 +304,14 @@ class Program
 
         if (!m.Success) return false;
         return int.TryParse(m.Groups["v"].Value, out rssi);
+    }
+
+	public static string ParseMobileMode(string qmicliOutput)
+    {
+        if (string.IsNullOrWhiteSpace(qmicliOutput))
+            return "Unknown";
+
+		return qmicliOutput.Split('\r', '\n')?[1].Replace(":","");
     }
 
 	static int GetRouteMetric(string route)
@@ -425,9 +434,10 @@ class Device
     public string State { get; set; }
     public string Iface { get; set; }
 	public int Rssi { get; set; }
+	public string MobileMode { get; set; }
     public override string ToString()
     {
-        return $"{Name} {State} {Iface} RSSI {Rssi}";
+        return $"{Name} {State} {Iface} RSSI {Rssi} Mode {MobileMode}";
     }
 }
 
