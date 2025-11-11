@@ -102,7 +102,7 @@ class Program
 
                     logger.LogInformation($"{device.Name} ({device.Iface}) state {device.State}. Receive: {PacketReceive} # Loss %: {PacketLoss} # RTT ms: {AvgRtt} # ChannelState: {channelState} # RSSI: {device.Rssi} # Mode: {device.MobileMode}");
 
-					if (PacketLoss > maxLoss || AvgRtt > maxRtt || device.Rssi! < -77 || (device.MobileMode != "LTE" && device.MobileMode != "Unknown"))
+					if (PacketLoss > maxLoss || AvgRtt > maxRtt || device.Rssi! < -80 || (device.MobileMode != "LTE" && device.MobileMode != "Unknown"))
 					{
 						if (!string.IsNullOrWhiteSpace(route) && routeMetric < 1100)
 						{
@@ -191,6 +191,15 @@ class Program
 		var groups = parsed.GroupBy(p => p.Dev, StringComparer.Ordinal);
 		foreach (var g in groups)
         {
+			if (g.Key.StartsWith("if"))
+			{
+				logger.LogError($"Remove orphaned endpoints dev: {g.Key}");
+				foreach (var e in g)
+				{
+					$"ip mptcp endpoint delete id {e.Id}".Bash();
+				}
+			}
+
             if (g.Count() <= 1) continue;
 
             int maxId = g.Max(x => x.Id);
@@ -232,7 +241,6 @@ class Program
             $"ip mptcp endpoint delete id {ep.Id}".Bash();
 			Thread.Sleep(500);
             $"ip mptcp endpoint add {ep.Ip} dev {ep.Dev} subflow".Bash();
-			logger.LogError($"Recreate dead endpoint {ep}");
         }
 
 	}
