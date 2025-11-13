@@ -94,6 +94,15 @@ class Program
 
 					//calculate route parameters
 					var route = $"ip route show {_srv} dev {device.Iface}".Bash();
+					var routeCount = route.Split('\n').Count();
+					if (routeCount > 1)
+					{
+						logger.LogError($"Device {device.Name} has {routeCount} routes. Flushing.");
+						for (int i = 0; i < (routeCount - 1); i++)
+						{
+							$"ip route del {_srv} dev {device.Iface}".Bash();
+						}
+					}
 					var routeMetric = GetRouteMetric(route);
 					//---------------------------------------------
 					var num =  Regex.Match(device.Iface, @"\d+").Value;
