@@ -11,40 +11,37 @@ class Program
     private static string _srv;
     private const int _restartCount = 15;
     private const string _logFile = "/tmp/flow-restart";
-    private const string _ovpnUnit2 = "openvpn-client@client.service";
+    private const string _ovpnUnit = "openvpn-client@client.service";
 
     static void Main(string[] args)
     {
         using var loggerFactory = LoggerFactory.Create(builder =>
         {
-            builder
-                .AddSystemdConsole();
+            builder.AddSystemdConsole();
         });
         ILogger logger = loggerFactory.CreateLogger("main");
         //srv detection
-        if (File.Exists("/etc/openvpn/client.conf"))
-            _srv = "cat /etc/openvpn/client.conf | grep \"^remote \" | awk '{{print $2}}'".Bash().Trim();
         if (File.Exists("/etc/openvpn/client/client.conf"))
-            _srv = "cat /etc/openvpn/client/client.conf | grep \"^remote \" | awk '{{print $2}}'".Bash().Trim();
+            _srv = "cat /etc/openvpn/client/client.conf | grep \"^remote \" | awk '{{print $2}}'".Bash();
             
-        var flowCount = $"ss -Hntp state established dst {_srv}".Bash().Trim().Split('\r', '\n').Length;
-        var routeCount = "ip mptcp endpoint show".Bash().Trim().Split('\r', '\n').Count(a => !a.Contains("backup"));
+        var flowCount = $"ss -Hntp state established dst {_srv}".Bash().Split('\r', '\n').Length;
+        var routeCount = "ip mptcp endpoint show | grep wwan".Bash().Split('\r', '\n').Count(a => !a.Contains("backup"));
 
         if (flowCount < routeCount)
         {
             logger.LogWarning($"Flow count = {flowCount}\nMultipath count = {routeCount}");
             logger.LogWarning("Flow NOT equal routes! Restarting OpenVPN");
             File.WriteAllText(_logFile, "1");
-            $"systemctl -q restart {_ovpnUnit2}".Bash();
+            $"systemctl -q restart {_ovpnUnit}".Bash();
             Thread.Sleep(1000);
-            if ($"systemctl is-active {_ovpnUnit2}".Bash().Trim() == "active")
+            if ($"systemctl is-active {_ovpnUnit}".Bash() == "active")
                 logger.LogInformation("Success restart openvpn client");
             else
                 logger.LogError("FAILED restart openvpn client");
         }
         else
         {
-            logger.LogInformation($"Flow equal routes. Count: {flowCount}");
+            logger.LogInformation($"Flow count in normal. Flowcount: {flowCount}, MPTCP route count: {routeCount}");
             if (!File.Exists(_logFile))
                 File.WriteAllText(_logFile, "1");
             else
@@ -62,9 +59,9 @@ class Program
                 if (currentCount > _restartCount)
                 {
                     File.WriteAllText(_logFile, "1");
-                    $"systemctl -q restart {_ovpnUnit2}".Bash();
+                    $"systemctl -q restart {_ovpnUnit}".Bash();
                     Thread.Sleep(1000);
-                    if ($"systemctl is-active {_ovpnUnit2}".Bash().Trim() == "active")
+                    if ($"systemctl is-active {_ovpnUnit}".Bash() == "active")
                         logger.LogInformation("Success restart openvpn client by counter");
                     else
                         logger.LogError("FAILED restart openvpn client by counter");
@@ -84,7 +81,6 @@ public static class ShellHelper
     public static string Bash(this string cmd)
     {
         string escapedArgs = cmd.Replace("\"", "\\\"");
-
         Process process = new Process()
         {
             StartInfo = new ProcessStartInfo
@@ -96,11 +92,9 @@ public static class ShellHelper
                 CreateNoWindow = true,
             }
         };
-
         process.Start();
         string result = process.StandardOutput.ReadToEnd();
         process.WaitForExit(35000);
-
-        return result;
+        return result.Trim();
     }
 }
