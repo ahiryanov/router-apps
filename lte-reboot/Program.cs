@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using Microsoft.Extensions.Logging;
@@ -246,12 +247,40 @@ class Program
         {
             bool inUse = localIpInUse.Contains(ep.Ip);
             if (inUse) continue;
-			logger.LogError($"Endpoint id={ep.Id} ip={ep.Ip} dev={ep.Dev} flags=[{string.Join(' ', ep.Flags)}] -> {(inUse ? "in use" : " NOT in use")}");
+			var realModemIp = GetRealModemIp(ep.Dev);
+			logger.LogError($"Endpoint id={ep.Id} ip={ep.Ip} realIP={realModemIp} dev={ep.Dev} flags=[{string.Join(' ', ep.Flags)}] -> {(inUse ? "in use" : " NOT in use")}");
             $"ip mptcp endpoint delete id {ep.Id}".Bash();
 			Thread.Sleep(500);
-            $"ip mptcp endpoint add {ep.Ip} dev {ep.Dev} subflow".Bash();
+            $"ip mptcp endpoint add {realModemIp} dev {ep.Dev} subflow".Bash();
         }
 
+	}
+
+	private static object GetRealModemIp(string dev)
+	{
+		var json = $"ip -j address show dev {dev}".Bash();
+		using var doc = JsonDocument.Parse(json);
+
+		if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
+			return null;
+
+		var iface = doc.RootElement[0];
+
+		if (!iface.TryGetProperty("addr_info", out var addrInfo) || addrInfo.ValueKind != JsonValueKind.Array)
+			return null;
+
+		foreach (var item in addrInfo.EnumerateArray())
+		{
+			if (item.TryGetProperty("family", out var fam) &&
+				fam.ValueKind == JsonValueKind.String &&
+				fam.GetString() == "inet" &&
+				item.TryGetProperty("local", out var localProp) &&
+				localProp.ValueKind == JsonValueKind.String)
+			{
+				return localProp.GetString();
+			}
+		}
+		return null;
 	}
 
 	static string ConnectionDown(string deviceName, ILogger logger)
