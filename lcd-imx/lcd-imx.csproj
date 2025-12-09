@@ -8,11 +8,7 @@
 	<SelfContained>false</SelfContained>
   </PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="System.Drawing.Common" Version="9.0.8" />
-  </ItemGroup>
-
-  <ItemGroup>
+ <ItemGroup>
   <None Include="font-v14n.ttf">
     <CopyToOutputDirectory>Always</CopyToOutputDirectory>
   </None>
