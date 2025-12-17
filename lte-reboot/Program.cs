@@ -58,6 +58,8 @@ class Program
 					device.Rssi = rssi;
 				}
 				device.MobileMode = ParseMobileMode(qmicliOutput);
+				var operatorOutput = $"qmicli -p -d /dev/{device.Name} --nas-get-operator-name".Bash();
+				device.Operator = ParseOperator(operatorOutput);
 				devices.Add(device);
 			}
 		}
@@ -111,7 +113,7 @@ class Program
 
 					var channelState = ComputeState(PacketLoss, AvgRtt, PacketReceive);
 
-					logger.LogInformation($"{device.Name} ({device.Iface}) state {device.State}. Receive: {PacketReceive} # Loss %: {PacketLoss} # RTT ms: {AvgRtt} # ChannelState: {channelState} # RSSI: {device.Rssi} # Mode: {device.MobileMode}");
+					logger.LogInformation($"{device.Name} {device.State}. Receive: {PacketReceive} # Loss %: {PacketLoss} # RTT ms: {AvgRtt} # State: {channelState} # {device.Operator} # RSSI: {device.Rssi} # Mode: {device.MobileMode}");
 
 					if (PacketLoss > maxLoss || AvgRtt > maxRtt || device.Rssi! < -80 || (device.MobileMode != "LTE" && device.MobileMode != "Unknown"))
 					{
@@ -181,6 +183,16 @@ class Program
 					break;
 			}
 		}
+	}
+
+	private static string ParseOperator(string operatorOutput)
+	{
+		var m = Regex.Match(operatorOutput,
+			@"Service Provider Name[\s\S]*?Name\s*:\s*'([^']+)'",
+			RegexOptions.IgnoreCase);
+		if (!m.Success) return "N/A";
+		var name = m.Groups[1].Value.Trim();
+		return name;
 	}
 
 	private static void nolteReset(Device device, ILogger logger)
@@ -512,9 +524,10 @@ class Device
 	public string Iface { get; set; }
 	public int Rssi { get; set; }
 	public string MobileMode { get; set; }
+	public string Operator { get; set; }
 	public override string ToString()
 	{
-		return $"{Name} {State} {Iface} RSSI {Rssi} Mode {MobileMode}";
+		return $"{Name} {State} {Iface} RSSI {Rssi} Mode {MobileMode} OP {Operator}";
 	}
 }
 
