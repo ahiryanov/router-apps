@@ -47,8 +47,8 @@ class Program
 			if (string.IsNullOrWhiteSpace(device_raw))
 				continue;
 			var device = new Device();
-			device.Name = device_raw.Split(":")[0];
-			device.State = device_raw.Split(":")[1];
+			device.Name = device_raw.Split(":")?[0];
+			device.State = device_raw.Split(":")?[1];
 			if (device.Name.Contains("cdc-wdm"))
 			{
 				device.Iface = $"qmicli --silent -d /dev/{device.Name} --get-wwan-iface".Bash().Replace("\n", "");
@@ -77,15 +77,15 @@ class Program
 					int AvgRtt = 10000;
 					if (isPingIputils)
 					{
-						int.TryParse(new Regex(@"(\w+)\s" + "received").Match(ping).Groups[1].Value, out PacketReceive);
-						double.TryParse(new Regex(@"([\d.,]+)%\s*packet\s+loss").Match(ping).Groups[1].Value, out PacketLoss);
-						int.TryParse(new Regex("/" + @"(\d+)" + ".").Match(ping).Groups[1].Value, out AvgRtt);
+						int.TryParse(new Regex(@"(\w+)\s" + "received").Match(ping)?.Groups[1]?.Value, out PacketReceive);
+						double.TryParse(new Regex(@"([\d.,]+)%\s*packet\s+loss").Match(ping)?.Groups[1]?.Value, out PacketLoss);
+						int.TryParse(new Regex("/" + @"(\d+)" + ".").Match(ping)?.Groups[1]?.Value, out AvgRtt);
 					}
 					else
 					{
-						int.TryParse(new Regex(@"(\w+)\s" + "packets received").Match(ping).Groups[1].Value, out PacketReceive);
-						double.TryParse(new Regex(@"(\d+)%\s" + "packet loss").Match(ping).Groups[1].Value, out PacketLoss);
-						int.TryParse(new Regex("/" + @"(\d+)" + ".").Match(ping).Groups[1].Value, out AvgRtt);
+						int.TryParse(new Regex(@"(\w+)\s" + "packets received").Match(ping)?.Groups[1]?.Value, out PacketReceive);
+						double.TryParse(new Regex(@"(\d+)%\s" + "packet loss").Match(ping)?.Groups[1]?.Value, out PacketLoss);
+						int.TryParse(new Regex("/" + @"(\d+)" + ".").Match(ping)?.Groups[1]?.Value, out AvgRtt);
 					}
 					AvgRtt = AvgRtt == 0 ? 10000 : AvgRtt;
 
