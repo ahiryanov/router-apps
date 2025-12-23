@@ -91,8 +91,7 @@ class Program
 
 					//calculate ip mptcp endpoint parameters
 					var endpoint = $"ip mptcp endpoint | grep {device.Iface}".Bash();
-					var endpointId = endpoint?.Split()?[2];
-					var endpointAddr = endpoint?.Split()?.First();
+					var endpointId = !string.IsNullOrWhiteSpace(endpoint) ? endpoint.Split()[2] : null;
 					var endpointIsBackup = endpoint?.Contains("backup");
 					//---------------------------------------------
 
@@ -130,13 +129,19 @@ class Program
 						$"ip route del {_srv} dev {device.Iface}".Bash();
 						$"ip route replace {_srv} dev {device.Iface} metric {channelState}{num}".Bash();
 
+						var realModemIp = GetRealModemIp(device.Iface);
 						if ((bool)endpointIsBackup)
 						{
 							$"ip mptcp endpoint del id {endpointId}".Bash();
 							Thread.Sleep(500);
-							$"ip mptcp endpoint add {endpointAddr} dev {device.Iface} subflow".Bash();
+							$"ip mptcp endpoint add {realModemIp} dev {device.Iface} subflow".Bash();
 							Thread.Sleep(500);
-							logger.LogWarning($"{device.Name} {device.Iface} subflow recreated");
+							logger.LogWarning($"{device.Name} {device.Iface} subflow recreated with RealIp {realModemIp} - no backup");
+						}
+						if (string.IsNullOrWhiteSpace(endpoint))
+						{
+							$"ip mptcp endpoint add {realModemIp} dev {device.Iface} subflow".Bash();
+							logger.LogWarning($"{device.Name} {device.Iface} subflow recreated with RealIp {realModemIp} - no endpoint");
 						}
 						if (string.IsNullOrWhiteSpace(route))
 						{
@@ -299,17 +304,17 @@ class Program
 
 	}
 
-	private static object GetRealModemIp(string dev)
+	private static object GetRealModemIp(string iface)
 	{
-		var json = $"ip -j address show dev {dev}".Bash();
+		var json = $"ip -j address show dev {iface}".Bash();
 		using var doc = JsonDocument.Parse(json);
 
 		if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
 			return null;
 
-		var iface = doc.RootElement[0];
+		var ifaceN = doc.RootElement[0];
 
-		if (!iface.TryGetProperty("addr_info", out var addrInfo) || addrInfo.ValueKind != JsonValueKind.Array)
+		if (!ifaceN.TryGetProperty("addr_info", out var addrInfo) || addrInfo.ValueKind != JsonValueKind.Array)
 			return null;
 
 		foreach (var item in addrInfo.EnumerateArray())
