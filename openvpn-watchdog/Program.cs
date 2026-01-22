@@ -12,8 +12,8 @@ internal static class Program
     {
         public string SocketPath { get; set; } = "/run/openvpn.sock";
         public int IntervalSec { get; set; } = 1;
-        public int IdleSec { get; set; } = 10;
-        public int CooldownSec { get; set; } = 60;
+        public int IdleSec { get; set; } = 20;
+        public int CooldownSec { get; set; } = 120;
     }
 
     public static async Task<int> Main(string[] args)
