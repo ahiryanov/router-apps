@@ -68,6 +68,11 @@ class Program
 
 		foreach (var device in devices)
 		{
+			//calculate ip mptcp endpoint parameters
+			var endpoint = $"ip mptcp endpoint | grep {device.Iface}".Bash();
+			var endpointId = !string.IsNullOrWhiteSpace(endpoint) ? endpoint.Split()[2] : null;
+			var endpointIsBackup = endpoint?.Contains("backup");
+
 			switch (device.State)
 			{
 				case "connected":
@@ -89,12 +94,6 @@ class Program
 					}
 					AvgRtt = AvgRtt == 0 ? 10000 : AvgRtt;
 
-					//calculate ip mptcp endpoint parameters
-					var endpoint = $"ip mptcp endpoint | grep {device.Iface}".Bash();
-					var endpointId = !string.IsNullOrWhiteSpace(endpoint) ? endpoint.Split()[2] : null;
-					var endpointIsBackup = endpoint?.Contains("backup");
-					//---------------------------------------------
-
 					//calculate route parameters
 					var route = $"ip route show {_srv} dev {device.Iface}".Bash();
 					var routeCount = route.Split('\n').Count();
@@ -106,8 +105,9 @@ class Program
 							$"ip route del {_srv} dev {device.Iface}".Bash();
 						}
 					}
+
 					var routeMetric = GetRouteMetric(route);
-					//---------------------------------------------
+
 					var num = Regex.Match(device.Iface, @"\d+").Value;
 
 					var channelState = ComputeState(PacketLoss, AvgRtt, PacketReceive);
@@ -160,6 +160,7 @@ class Program
 
 				case "connecting (prepare)":
 					ConnectionDown(device.Name, logger);
+					$"ip mptcp endpoint del id {endpointId}".Bash();
 					Thread.Sleep(2000);
 					var prepareIsUp = ConnectionUp(device.Name, logger);
 					if (!prepareIsUp)
@@ -172,6 +173,7 @@ class Program
 					break;
 
 				case "disconnected":
+					$"ip mptcp endpoint del id {endpointId}".Bash();
 					var disconnectIsUp = ConnectionUp(device.Name, logger);
 					if (!disconnectIsUp)
 					{
