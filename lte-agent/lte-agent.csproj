@@ -6,6 +6,8 @@
 	<RootNamespace>lte_agent</RootNamespace>
 	<PublishSingleFile>true</PublishSingleFile>
 	<SelfContained>false</SelfContained>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
   </PropertyGroup>
 
   <ItemGroup>
