@@ -64,6 +64,7 @@ class Program
 			}
 		}
 		logger.LogInformation($"Device count: {devices.Count}" + $" # server ip: {_srv}" + $" # Max loss {maxLoss}, Max rtt {maxRtt}" + " # Ping " + (isPingIputils ? "iputils" : "busybox"));
+		DeviceCountCheck(devices.Count,logger);
 		devices = devices.OrderBy(m => m.Name).ToList();
 
 		foreach (var device in devices)
@@ -188,6 +189,38 @@ class Program
 					logger.LogInformation($"{device.Name} ({device.Iface}) state {device.State}");
 					ConnectionUp(device.Name, logger);
 					break;
+			}
+		}
+	}
+
+	private static void DeviceCountCheck(int count, ILogger logger)
+	{
+		string deviceCountLog = $"{_logFile}-devicecount";
+		if (count == 8)
+		{
+			File.Delete(deviceCountLog);
+			return;
+		}
+		if (count < 6)
+		{
+			if (!File.Exists(deviceCountLog))
+			{
+				File.WriteAllText(deviceCountLog, "1");
+				return;
+			}
+			int currentCount = 1;
+			int.TryParse(File.ReadAllText(deviceCountLog), out currentCount);
+			if (currentCount > 5)
+			{
+				File.WriteAllText(deviceCountLog, "1");
+				"echo \"1-1\" > /sys/bus/usb/drivers/usb/unbind && sleep 2 $$ echo \"1-1\" > /sys/bus/usb/drivers/usb/bind".Bash();
+				"echo \"2-1\" > /sys/bus/usb/drivers/usb/unbind && sleep 2 $$ echo \"2-1\" > /sys/bus/usb/drivers/usb/bind".Bash();
+				logger.LogError($"Critical error - reset usb hubs");
+			}
+			else
+			{
+				currentCount++;
+				File.WriteAllText(deviceCountLog, currentCount.ToString());
 			}
 		}
 	}
