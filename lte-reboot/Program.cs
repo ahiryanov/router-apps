@@ -213,8 +213,8 @@ class Program
 			if (currentCount > 5)
 			{
 				File.WriteAllText(deviceCountLog, "1");
-				"echo \"1-1\" > /sys/bus/usb/drivers/usb/unbind && sleep 2 $$ echo \"1-1\" > /sys/bus/usb/drivers/usb/bind".Bash();
-				"echo \"2-1\" > /sys/bus/usb/drivers/usb/unbind && sleep 2 $$ echo \"2-1\" > /sys/bus/usb/drivers/usb/bind".Bash();
+				"echo \"1-1\" > /sys/bus/usb/drivers/usb/unbind && sleep 2 && echo \"1-1\" > /sys/bus/usb/drivers/usb/bind".Bash();
+				"echo \"2-1\" > /sys/bus/usb/drivers/usb/unbind && sleep 2 && echo \"2-1\" > /sys/bus/usb/drivers/usb/bind".Bash();
 				logger.LogError($"Critical error - reset usb hubs");
 			}
 			else
