@@ -210,7 +210,7 @@ class Program
 			}
 			int currentCount = 1;
 			int.TryParse(File.ReadAllText(deviceCountLog), out currentCount);
-			if (currentCount > 5)
+			if (currentCount > 2)
 			{
 				File.WriteAllText(deviceCountLog, "1");
 				"echo \"1-1\" > /sys/bus/usb/drivers/usb/unbind && sleep 2 && echo \"1-1\" > /sys/bus/usb/drivers/usb/bind".Bash();
