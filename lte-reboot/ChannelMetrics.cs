@@ -1,10 +1,45 @@
 using System;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
 
 namespace lte_reboot;
 
 internal static class ChannelMetrics
 {
+	public static (int PacketReceive, double PacketLoss, int AvgRtt) ParsePing(string pingOutput, bool isIputils)
+	{
+		int packetReceive = 0;
+		double packetLoss = 100;
+		int avgRtt = 10000;
+		if (isIputils)
+		{
+			int.TryParse(new Regex(@"(\w+)\s" + "received").Match(pingOutput)?.Groups[1]?.Value, out packetReceive);
+			double.TryParse(new Regex(@"([\d.,]+)%\s*packet\s+loss").Match(pingOutput)?.Groups[1]?.Value, out packetLoss);
+			int.TryParse(new Regex("/" + @"(\d+)" + ".").Match(pingOutput)?.Groups[1]?.Value, out avgRtt);
+		}
+		else
+		{
+			int.TryParse(new Regex(@"(\w+)\s" + "packets received").Match(pingOutput)?.Groups[1]?.Value, out packetReceive);
+			double.TryParse(new Regex(@"(\d+)%\s" + "packet loss").Match(pingOutput)?.Groups[1]?.Value, out packetLoss);
+			int.TryParse(new Regex("/" + @"(\d+)" + ".").Match(pingOutput)?.Groups[1]?.Value, out avgRtt);
+		}
+		avgRtt = avgRtt == 0 ? 10000 : avgRtt;
+		return (packetReceive, packetLoss, avgRtt);
+	}
+
+	public static string GetRouteWithFlush(string iface, string deviceName, ILogger logger)
+	{
+		var route = $"ip route show {AppConfig.Srv} dev {iface}".Bash();
+		var routeCount = route.Split('\n').Length;
+		if (routeCount > 1)
+		{
+			logger.LogError($"Device {deviceName} has {routeCount} routes. Flushing.");
+			for (int i = 0; i < (routeCount - 1); i++)
+				$"ip route del {AppConfig.Srv} dev {iface}".Bash();
+		}
+		return route;
+	}
+
 	public static int GetRouteMetric(string route)
 	{
 		var m = Regex.Match(route ?? string.Empty, @"\bmetric\s+(\d+)\b");

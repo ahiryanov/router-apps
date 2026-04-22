@@ -5,6 +5,8 @@ using Microsoft.Extensions.Logging;
 
 namespace lte_reboot;
 
+internal enum ConnectionResult { Success, Failed, Skipped }
+
 internal static class ConnectionManager
 {
 	public static void DeviceCountCheck(int count, ILogger logger)
@@ -74,14 +76,23 @@ internal static class ConnectionManager
 		return $"nmcli -w 10 connection down {deviceName}-conn".Bash();
 	}
 
-	public static bool ConnectionUp(string deviceName, ILogger logger)
+	public static ConnectionResult ConnectionUp(string deviceName, ILogger logger)
 	{
+		string cooldownLog = $"{AppConfig.LogFile}-{deviceName}-cooldown";
+		if (File.Exists(cooldownLog) &&
+			int.TryParse(File.ReadAllText(cooldownLog), out var remaining) &&
+			remaining > 0)
+		{
+			File.WriteAllText(cooldownLog, (remaining - 1).ToString());
+			logger.LogInformation($"{deviceName} cooldown {remaining}");
+			return ConnectionResult.Skipped;
+		}
+
 		string resetModemlog = $"{AppConfig.LogFile}-{deviceName}-reset";
-		bool successUp = true;
 		var response = $"nmcli -w 10 connection up {deviceName}-conn".Bash();
 		if (response.ToLower().Contains("failed") || response.ToLower().Contains("timeout"))
 		{
-			successUp = false;
+			File.WriteAllText(cooldownLog, AppConfig.CooldownCycles.ToString());
 			if (!File.Exists(resetModemlog))
 				File.WriteAllText(resetModemlog, "1");
 			else
@@ -119,7 +130,9 @@ internal static class ConnectionManager
 		else
 		{
 			File.WriteAllText(resetModemlog, "1");
+			File.Delete(cooldownLog);
+			return ConnectionResult.Success;
 		}
-		return successUp;
+		return ConnectionResult.Failed;
 	}
 }

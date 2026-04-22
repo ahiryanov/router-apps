@@ -12,6 +12,24 @@ internal static class MptcpManager
 {
 	private record Endpoint(int Id, string Ip, string Dev, bool IsBackup, IReadOnlyList<string> Flags, string RawTail);
 
+	public static void EnsureActiveSubflow(Device device, string endpoint, string endpointId, bool isBackup, ILogger logger)
+	{
+		var realModemIp = GetRealModemIp(device.Iface);
+		if (isBackup)
+		{
+			$"ip mptcp endpoint del id {endpointId}".Bash();
+			Thread.Sleep(500);
+			$"ip mptcp endpoint add {realModemIp} dev {device.Iface} subflow laminar".Bash();
+			Thread.Sleep(500);
+			logger.LogWarning($"{device.Name} {device.Iface} subflow recreated with RealIp {realModemIp} - no backup");
+		}
+		if (string.IsNullOrWhiteSpace(endpoint))
+		{
+			$"ip mptcp endpoint add {realModemIp} dev {device.Iface} subflow laminar".Bash();
+			logger.LogWarning($"{device.Name} {device.Iface} subflow recreated with RealIp {realModemIp} - no endpoint");
+		}
+	}
+
 	public static void CheckMultipleEndpoints(ILogger logger)
 	{
 		var endpoints = "ip mptcp endpoint".Bash();
