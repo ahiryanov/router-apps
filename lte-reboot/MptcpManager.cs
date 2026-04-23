@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -7,6 +8,11 @@ using System.Threading;
 using Microsoft.Extensions.Logging;
 
 namespace lte_reboot;
+
+internal record SubflowMetrics(double RttMs, double RttVar)
+{
+    public double StabilityRatio => RttMs > 0 ? RttVar / RttMs : 1.0;
+}
 
 internal static class MptcpManager
 {
@@ -81,16 +87,50 @@ internal static class MptcpManager
 		}
 	}
 
-	public static void RecreateDeadSubflow(ILogger logger)
+	public static Dictionary<string, SubflowMetrics> GetSubflowMetrics(string srv)
+	{
+		var ssOut = $"ss -MntiH state established dst {srv}".Bash();
+		var result = new Dictionary<string, SubflowMetrics>(StringComparer.Ordinal);
+		if (string.IsNullOrWhiteSpace(ssOut)) return result;
+
+		var lines = ssOut.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+		for (int i = 0; i < lines.Length; i++)
+		{
+			var line = lines[i];
+			if (string.IsNullOrWhiteSpace(line) || char.IsWhiteSpace(line[0])) continue;
+			if (line.TrimStart().StartsWith("mptcp", StringComparison.OrdinalIgnoreCase)) continue;
+
+			var localMatch = Regex.Match(line, @"\d+\s+\d+\s+(?<local>\S+:\d+)\s+");
+			if (!localMatch.Success) continue;
+
+			string localIp = TrimToIp(localMatch.Groups["local"].Value);
+			if (string.IsNullOrEmpty(localIp)) continue;
+
+			if (i + 1 >= lines.Length) continue;
+			var infoLine = lines[i + 1];
+			if (string.IsNullOrEmpty(infoLine) || !char.IsWhiteSpace(infoLine[0])) continue;
+
+			var rttMatch = Regex.Match(infoLine, @"\brtt:(?<rtt>\d+(?:\.\d+)?)/(?<var>\d+(?:\.\d+)?)");
+			if (!rttMatch.Success) continue;
+
+			if (double.TryParse(rttMatch.Groups["rtt"].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out double rtt) &&
+				double.TryParse(rttMatch.Groups["var"].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out double rttVar))
+			{
+				result[localIp] = new SubflowMetrics(rtt, rttVar);
+			}
+		}
+		return result;
+	}
+
+	public static void RecreateDeadSubflow(ILogger logger, Dictionary<string, SubflowMetrics> subflows)
 	{
 		var endpointsRaw = "ip mptcp endpoint".Bash();
 		var endpoints = ParseEndpoints(endpointsRaw);
 		var activeEndpoints = endpoints.Where(e => !e.IsBackup).ToList();
-		var localIpInUse = GetSsIp(AppConfig.Srv);
 
 		foreach (var ep in activeEndpoints)
 		{
-			bool inUse = localIpInUse.Contains(ep.Ip);
+			bool inUse = subflows.ContainsKey(ep.Ip);
 			if (inUse) continue;
 			var realModemIp = GetRealModemIp(ep.Dev);
 			logger.LogError($"Endpoint id={ep.Id} ip={ep.Ip} realIP={realModemIp} dev={ep.Dev} flags=[{string.Join(' ', ep.Flags)}] -> {(inUse ? "in use" : " NOT in use")}");
@@ -100,7 +140,7 @@ internal static class MptcpManager
 		}
 	}
 
-	public static object GetRealModemIp(string iface)
+	public static string GetRealModemIp(string iface)
 	{
 		var json = $"ip -j address show dev {iface}".Bash();
 		using var doc = JsonDocument.Parse(json);
@@ -159,24 +199,7 @@ internal static class MptcpManager
 		return list;
 	}
 
-	private static HashSet<string> GetSsIp(string srv)
-	{
-		var ssOut = $"ss -tHn state established dst {srv}".Bash();
-		var set = new HashSet<string>(StringComparer.Ordinal);
-		if (string.IsNullOrWhiteSpace(ssOut)) return set;
-		var rx = new Regex(@"^\s*\d+\s+\d+\s+(?<local>\S+)\s+(?<peer>\S+)", RegexOptions.Multiline);
-
-		foreach (Match m in rx.Matches(ssOut))
-		{
-			string local = m.Groups["local"].Value;
-			string ip = TrimToIp(local);
-			if (!string.IsNullOrEmpty(ip))
-				set.Add(ip);
-		}
-		return set;
-	}
-
-	private static string TrimToIp(string endpoint)
+private static string TrimToIp(string endpoint)
 	{
 		int pct = endpoint.IndexOf('%');
 		int colon = endpoint.IndexOf(':');

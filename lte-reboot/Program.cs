@@ -19,7 +19,8 @@ class Program
 
 		AppConfig.DetectSrv();
 		MptcpManager.CheckMultipleEndpoints(logger);
-		MptcpManager.RecreateDeadSubflow(logger);
+		var subflows = MptcpManager.GetSubflowMetrics(AppConfig.Srv);
+		MptcpManager.RecreateDeadSubflow(logger, subflows);
 		AppConfig.ApplyArgs(args);
 
 		bool isPingIputils = "ping -V".Bash().Contains("iputils");
@@ -38,17 +39,23 @@ class Program
 			switch (device.State)
 			{
 				case "connected":
+					var deviceIp = MptcpManager.GetRealModemIp(device.Iface);
+					subflows.TryGetValue(deviceIp ?? string.Empty, out var ssMetrics);
+
 					var ping = $"ping {AppConfig.Srv} -I {device.Iface} -A -w 1 -q -s 1400".Bash();
 					var (PacketReceive, PacketLoss, AvgRtt) = ChannelMetrics.ParsePing(ping, isPingIputils);
 
 					var route = ChannelMetrics.GetRouteWithFlush(device.Iface, device.Name, logger);
 					var routeMetric = ChannelMetrics.GetRouteMetric(route);
 					var num = Regex.Match(device.Iface, @"\d+").Value;
-					var channelState = ChannelMetrics.ComputeState(PacketLoss, AvgRtt, PacketReceive);
+					var channelState = ChannelMetrics.ComputeState(PacketLoss, AvgRtt, PacketReceive, ssMetrics);
 
-					logger.LogInformation($"{device.Name} {device.State}. Receive: {PacketReceive} # Loss %: {PacketLoss} # RTT ms: {AvgRtt} # State: {channelState} # {device.Operator} # RSSI: {device.Rssi} # Mode: {device.MobileMode}");
+					var ssLog = ssMetrics != null
+						? $" # ssRTT: {ssMetrics.RttMs:F1}/{ssMetrics.RttVar:F1}ms"
+						: "";
+					logger.LogInformation($"{device.Iface} {device.State}. Rcv: {PacketReceive} # Loss%: {(int)PacketLoss} # RTTms: {AvgRtt}{ssLog} # State: {channelState} # {device.Operator} # RSSI: {device.Rssi} # Mode: {device.MobileMode}");
 
-					if (PacketLoss > AppConfig.MaxLoss || AvgRtt > AppConfig.MaxRtt || device.Rssi! < -80 || (device.MobileMode != "LTE" && device.MobileMode != "Unknown"))
+					if (PacketLoss > AppConfig.MaxLoss || AvgRtt > AppConfig.MaxRtt || device.Rssi! < -85 || (device.MobileMode != "LTE" && device.MobileMode != "Unknown"))
 					{
 						if (!string.IsNullOrWhiteSpace(route) && routeMetric < 1100)
 						{
