@@ -25,13 +25,13 @@ internal static class MptcpManager
 		{
 			$"ip mptcp endpoint del id {endpointId}".Bash();
 			Thread.Sleep(500);
-			$"ip mptcp endpoint add {realModemIp} dev {device.Iface} subflow laminar".Bash();
+			$"ip mptcp endpoint add {realModemIp} dev {device.Iface} subflow".Bash();
 			Thread.Sleep(500);
 			logger.LogWarning($"{device.Name} {device.Iface} subflow recreated with RealIp {realModemIp} - no backup");
 		}
 		if (string.IsNullOrWhiteSpace(endpoint))
 		{
-			$"ip mptcp endpoint add {realModemIp} dev {device.Iface} subflow laminar".Bash();
+			$"ip mptcp endpoint add {realModemIp} dev {device.Iface} subflow".Bash();
 			logger.LogWarning($"{device.Name} {device.Iface} subflow recreated with RealIp {realModemIp} - no endpoint");
 		}
 	}
@@ -136,7 +136,7 @@ internal static class MptcpManager
 			logger.LogError($"Endpoint id={ep.Id} ip={ep.Ip} realIP={realModemIp} dev={ep.Dev} flags=[{string.Join(' ', ep.Flags)}] -> {(inUse ? "in use" : " NOT in use")}");
 			$"ip mptcp endpoint delete id {ep.Id}".Bash();
 			Thread.Sleep(500);
-			$"ip mptcp endpoint add {realModemIp} dev {ep.Dev} subflow laminar".Bash();
+			$"ip mptcp endpoint add {realModemIp} dev {ep.Dev} subflow".Bash();
 		}
 	}
 
