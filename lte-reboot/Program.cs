@@ -26,7 +26,7 @@ class Program
 		bool isPingIputils = "ping -V".Bash().Contains("iputils");
 		var devices = ModemInfo.DiscoverDevices();
 
-		logger.LogInformation($"Device count: {devices.Count}" + $" # server ip: {AppConfig.Srv}" + $" # Max loss {AppConfig.MaxLoss}, Max rtt {AppConfig.MaxRtt}" + " # Ping " + (isPingIputils ? "iputils" : "busybox"));
+		logger.LogInformation($"LTE count: {devices.Count}" + $" # srv: {AppConfig.Srv}" + $" # MaxLoss {AppConfig.MaxLoss}, MaxRtt {AppConfig.MaxRtt}" + " # Ping " + (isPingIputils ? "iputils" : "busybox") + $" # flags: {MptcpManager.SubflowFlags}");
 		ConnectionManager.DeviceCountCheck(devices.Count, logger);
 		devices = devices.OrderBy(m => m.Name).ToList();
 
@@ -55,7 +55,7 @@ class Program
 						: "";
 					logger.LogInformation($"{device.Iface} {device.State}. Rcv: {PacketReceive} # Loss%: {(int)PacketLoss} # RTTms: {AvgRtt}{ssLog} # State: {channelState} # {device.Operator} # RSSI: {device.Rssi} # Mode: {device.MobileMode}");
 
-					if (PacketLoss > AppConfig.MaxLoss || AvgRtt > AppConfig.MaxRtt || device.Rssi! < -85 || (device.MobileMode != "LTE" && device.MobileMode != "Unknown"))
+					if (PacketLoss > AppConfig.MaxLoss || AvgRtt > AppConfig.MaxRtt || device.Rssi! < -85 || channelState > 55 || (device.MobileMode != "LTE" && device.MobileMode != "Unknown"))
 					{
 						if (!string.IsNullOrWhiteSpace(route) && routeMetric < 1100)
 						{
