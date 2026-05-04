@@ -77,11 +77,11 @@ internal static class ChannelMetrics
 			double sSsRtt = Clamp(100.0 * (ss.RttMs - RttGoodMs) / (RttBadMs - RttGoodMs), 0.0, 100.0);
 			// variance/rtt ratio: <15% — stable, >50% — unstable
 			double sVar = Clamp(100.0 * (ss.StabilityRatio - 0.15) / (0.50 - 0.15), 0.0, 100.0);
-			state100 = 0.40 * sLoss + 0.15 * sPingRtt + 0.15 * sSsRtt + 0.15 * sVar + 0.15 * sPkts;
+			state100 = 0.30 * sLoss + 0.10 * sPingRtt + 0.25 * sSsRtt + 0.10 * sVar + 0.25 * sPkts;
 		}
 		else
 		{
-			state100 = 0.45 * sLoss + 0.30 * sPingRtt + 0.25 * sPkts;
+			state100 = 0.40 * sLoss + 0.30 * sPingRtt + 0.30 * sPkts;
 		}
 
 		return Math.Max(0, Math.Min(99, (int)Math.Round(state100)));
