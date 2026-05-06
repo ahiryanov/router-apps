@@ -1,13 +1,11 @@
 [Unit]
-Description=LTE channel manager
-Wants=NetworkManager.service
-After=multi-user.target NetworkManager.service
+Description=Reboot disconnected or preparing qmi modems
+Wants=lte-reboot.timer
+After=multi-user.target
 
 [Service]
-Type=simple
-Restart=always
-RestartSec=5s
-TimeoutStartSec=30s
+Type=oneshot
+TimeoutStartSec=90s
 ExecStart=/usr/sbin/lte-reboot
 Environment="DOTNET_GCHeapHardLimit=0x800000"
 
