@@ -1,4 +1,7 @@
+using System;
+using System.Diagnostics;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -8,7 +11,9 @@ namespace lte_reboot;
 
 class Program
 {
-	static void Main(string[] args)
+	private static readonly TimeSpan DecisionInterval = TimeSpan.FromSeconds(20);
+
+	static async Task Main(string[] args)
 	{
 		using var loggerFactory = LoggerFactory.Create(builder =>
 		{
@@ -17,13 +22,67 @@ class Program
 		});
 		ILogger logger = loggerFactory.CreateLogger("main");
 
+		AppConfig.ApplyArgs(args);
+		using var cts = new CancellationTokenSource();
+		using var sigTerm = PosixSignalRegistration.Create(PosixSignal.SIGTERM, context =>
+		{
+			context.Cancel = true;
+			cts.Cancel();
+		});
+		using var sigInt = PosixSignalRegistration.Create(PosixSignal.SIGINT, context =>
+		{
+			context.Cancel = true;
+			cts.Cancel();
+		});
+
+		bool isPingIputils = "ping -V".Bash().Contains("iputils");
+		logger.LogInformation($"lte-reboot daemon started. Decision interval: {DecisionInterval.TotalSeconds:F0}s # Ping " + (isPingIputils ? "iputils" : "busybox") + $" # flags: {MptcpManager.SubflowFlags}");
+
+		while (!cts.IsCancellationRequested)
+		{
+			var started = Stopwatch.StartNew();
+			try
+			{
+				RunCycle(logger, isPingIputils);
+			}
+			catch (OperationCanceledException) when (cts.IsCancellationRequested)
+			{
+				break;
+			}
+			catch (Exception ex)
+			{
+				logger.LogError(ex, "lte-reboot cycle failed");
+			}
+			started.Stop();
+
+			var delay = DecisionInterval - started.Elapsed;
+			if (delay > TimeSpan.Zero)
+			{
+				try
+				{
+					await Task.Delay(delay, cts.Token);
+				}
+				catch (OperationCanceledException) when (cts.IsCancellationRequested)
+				{
+					break;
+				}
+			}
+			else
+			{
+				logger.LogWarning($"lte-reboot cycle took {started.Elapsed.TotalSeconds:F1}s, longer than {DecisionInterval.TotalSeconds:F0}s interval");
+			}
+		}
+
+		logger.LogInformation("lte-reboot daemon stopped");
+	}
+
+	private static void RunCycle(ILogger logger, bool isPingIputils)
+	{
 		AppConfig.DetectSrv();
 		MptcpManager.CheckMultipleEndpoints(logger);
 		var subflows = MptcpManager.GetSubflowMetrics(AppConfig.Srv);
 		MptcpManager.RecreateDeadSubflow(logger, subflows);
-		AppConfig.ApplyArgs(args);
 
-		bool isPingIputils = "ping -V".Bash().Contains("iputils");
 		var devices = ModemInfo.DiscoverDevices();
 
 		logger.LogInformation($"LTE count: {devices.Count}" + $" # srv: {AppConfig.Srv}" + $" # MaxLoss {AppConfig.MaxLoss}, MaxRtt {AppConfig.MaxRtt}" + " # Ping " + (isPingIputils ? "iputils" : "busybox") + $" # flags: {MptcpManager.SubflowFlags}");
@@ -90,7 +149,7 @@ class Program
 				case "connecting (prepare)":
 					ConnectionManager.ConnectionDown(device.Name, logger);
 					$"ip mptcp endpoint del id {endpointId}".Bash();
-					Thread.Sleep(2000);
+					Thread.Sleep(1000);
 					var prepareResult = ConnectionManager.ConnectionUp(device.Name, logger);
 					if (prepareResult == ConnectionResult.Failed)
 					{

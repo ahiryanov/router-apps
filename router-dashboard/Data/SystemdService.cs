@@ -10,7 +10,7 @@ public class SystemdService
         { "gps.service", "GPS" },
         { "zabbix-proxy.service", "Zabbix Proxy" },
         { "zabbix-agent.service", "Zabbix Agent" },
-        { "lte-reboot.timer", "LTE reboot" },
+        { "lte-reboot.service", "LTE reboot" },
         { "dashboard.service", "Dashboard" },
     };
     public SystemdService()
