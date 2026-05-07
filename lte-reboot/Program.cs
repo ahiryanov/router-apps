@@ -23,6 +23,7 @@ class Program
 		ILogger logger = loggerFactory.CreateLogger("main");
 
 		AppConfig.ApplyArgs(args);
+		AppConfig.DetectSrv();
 		using var cts = new CancellationTokenSource();
 		using var sigTerm = PosixSignalRegistration.Create(PosixSignal.SIGTERM, context =>
 		{
@@ -36,7 +37,9 @@ class Program
 		});
 
 		bool isPingIputils = "ping -V".Bash().Contains("iputils");
-		logger.LogInformation($"lte-reboot daemon started. Decision interval: {DecisionInterval.TotalSeconds:F0}s # Ping " + (isPingIputils ? "iputils" : "busybox") + $" # flags: {MptcpManager.SubflowFlags}");
+		var kernelRelease = MptcpManager.KernelRelease;
+		var subflowFlags = MptcpManager.SubflowFlags;
+		logger.LogInformation($"lte-reboot daemon started. Decision interval: {DecisionInterval.TotalSeconds:F0}s # srv: {AppConfig.Srv} # Ping " + (isPingIputils ? "iputils" : "busybox") + $" # flags: {subflowFlags}");
 
 		while (!cts.IsCancellationRequested)
 		{
@@ -78,14 +81,13 @@ class Program
 
 	private static void RunCycle(ILogger logger, bool isPingIputils)
 	{
-		AppConfig.DetectSrv();
 		MptcpManager.CheckMultipleEndpoints(logger);
 		var subflows = MptcpManager.GetSubflowMetrics(AppConfig.Srv);
 		MptcpManager.RecreateDeadSubflow(logger, subflows);
 
 		var devices = ModemInfo.DiscoverDevices();
 
-		logger.LogInformation($"LTE count: {devices.Count}" + $" # srv: {AppConfig.Srv}" + $" # MaxLoss {AppConfig.MaxLoss}, MaxRtt {AppConfig.MaxRtt}" + " # Ping " + (isPingIputils ? "iputils" : "busybox") + $" # flags: {MptcpManager.SubflowFlags}");
+		logger.LogInformation($"LTE count: {devices.Count}" + $" # MaxLoss {AppConfig.MaxLoss}, MaxRtt {AppConfig.MaxRtt}");
 		ConnectionManager.DeviceCountCheck(devices.Count, logger);
 		devices = devices.OrderBy(m => m.Name).ToList();
 
@@ -109,9 +111,7 @@ class Program
 					var num = Regex.Match(device.Iface, @"\d+").Value;
 					var channelState = ChannelMetrics.ComputeState(PacketLoss, AvgRtt, PacketReceive, ssMetrics);
 
-					var ssLog = ssMetrics != null
-						? $" # ssRTT: {ssMetrics.RttMs:F1}/{ssMetrics.RttVar:F1}ms"
-						: "";
+					var ssLog = ssMetrics != null ? $" # ssRTT: {ssMetrics.RttMs:F1}/{ssMetrics.RttVar:F1}ms" : "";
 					logger.LogInformation($"{device.Iface} {device.State}. Rcv: {PacketReceive} # Loss%: {(int)PacketLoss} # RTTms: {AvgRtt}{ssLog} # State: {channelState} # {device.Operator} # RSSI: {device.Rssi} # Mode: {device.MobileMode}");
 
 					if (PacketLoss > AppConfig.MaxLoss || AvgRtt > AppConfig.MaxRtt || device.Rssi! < -85 || channelState > 55 || (device.MobileMode != "LTE" && device.MobileMode != "Unknown"))

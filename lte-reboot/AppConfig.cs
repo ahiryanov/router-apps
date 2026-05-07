@@ -9,7 +9,6 @@ internal static class AppConfig
 	internal static int MaxLoss = 25;
 	internal const int RestartCount = 30;
 	internal const int CooldownCycles = 5;
-	internal const string LogFile = "/tmp/lte";
 
 	internal static void DetectSrv()
 	{
