@@ -25,38 +25,24 @@ class Program
 		AppConfig.ApplyArgs(args);
 		AppConfig.DetectSrv();
 		using var cts = new CancellationTokenSource();
-		using var sigTerm = PosixSignalRegistration.Create(PosixSignal.SIGTERM, context =>
-		{
-			context.Cancel = true;
-			cts.Cancel();
-		});
-		using var sigInt = PosixSignalRegistration.Create(PosixSignal.SIGINT, context =>
-		{
-			context.Cancel = true;
-			cts.Cancel();
-		});
+		void OnShutdown(PosixSignalContext ctx) { ctx.Cancel = true; cts.Cancel(); }
+		using var sigTerm = PosixSignalRegistration.Create(PosixSignal.SIGTERM, OnShutdown);
+		using var sigInt = PosixSignalRegistration.Create(PosixSignal.SIGINT, OnShutdown);
 
-		bool isPingIputils = "ping -V".Bash().Contains("iputils");
-		var kernelRelease = MptcpManager.KernelRelease;
-		var subflowFlags = MptcpManager.SubflowFlags;
-		logger.LogInformation($"lte-reboot daemon started. Decision interval: {DecisionInterval.TotalSeconds:F0}s # srv: {AppConfig.Srv} # Ping " + (isPingIputils ? "iputils" : "busybox") + $" # flags: {subflowFlags}");
+		var pingImpl = AppConfig.IsPingIputils ? "iputils" : "busybox";
+		logger.LogInformation($"lte-reboot daemon started # interval: {DecisionInterval.TotalSeconds:F0}s # srv: {AppConfig.Srv} # ping: {pingImpl} # flags: {MptcpManager.SubflowFlags}");
 
 		while (!cts.IsCancellationRequested)
 		{
 			var started = Stopwatch.StartNew();
 			try
 			{
-				RunCycle(logger, isPingIputils);
-			}
-			catch (OperationCanceledException) when (cts.IsCancellationRequested)
-			{
-				break;
+				RunCycle(logger);
 			}
 			catch (Exception ex)
 			{
 				logger.LogError(ex, "lte-reboot cycle failed");
 			}
-			started.Stop();
 
 			var delay = DecisionInterval - started.Elapsed;
 			if (delay > TimeSpan.Zero)
@@ -79,7 +65,7 @@ class Program
 		logger.LogInformation("lte-reboot daemon stopped");
 	}
 
-	private static void RunCycle(ILogger logger, bool isPingIputils)
+	private static void RunCycle(ILogger logger)
 	{
 		MptcpManager.CheckMultipleEndpoints(logger);
 		var subflows = MptcpManager.GetSubflowMetrics(AppConfig.Srv);
@@ -104,7 +90,7 @@ class Program
 					subflows.TryGetValue(deviceIp ?? string.Empty, out var ssMetrics);
 
 					var ping = $"ping {AppConfig.Srv} -I {device.Iface} -A -w 1 -q -s 1400".Bash();
-					var (PacketReceive, PacketLoss, AvgRtt) = ChannelMetrics.ParsePing(ping, isPingIputils);
+					var (PacketReceive, PacketLoss, AvgRtt) = ChannelMetrics.ParsePing(ping, AppConfig.IsPingIputils);
 
 					var route = ChannelMetrics.GetRouteWithFlush(device.Iface, device.Name, logger);
 					var routeMetric = ChannelMetrics.GetRouteMetric(route);

@@ -16,30 +16,23 @@ internal static class ConnectionManager
 
 	public static void DeviceCountCheck(int count, ILogger logger)
 	{
-		if (count == 8)
+		if (count == AppConfig.ExpectedDeviceCount)
 		{
 			_lowDeviceCountCycles = 0;
 			return;
 		}
-		if (count < 6)
+		if (count >= AppConfig.LowDeviceThreshold) return;
+
+		if (_lowDeviceCountCycles <= AppConfig.LowDeviceResetCycles)
 		{
-			if (_lowDeviceCountCycles == 0)
-			{
-				_lowDeviceCountCycles = 1;
-				return;
-			}
-			if (_lowDeviceCountCycles > 2)
-			{
-				_lowDeviceCountCycles = 1;
-				"echo \"1-1\" > /sys/bus/usb/drivers/usb/unbind && sleep 2 && echo \"1-1\" > /sys/bus/usb/drivers/usb/bind".Bash();
-				"echo \"2-1\" > /sys/bus/usb/drivers/usb/unbind && sleep 2 && echo \"2-1\" > /sys/bus/usb/drivers/usb/bind".Bash();
-				logger.LogError($"Critical error - reset usb hubs");
-			}
-			else
-			{
-				_lowDeviceCountCycles++;
-			}
+			_lowDeviceCountCycles++;
+			return;
 		}
+
+		_lowDeviceCountCycles = 1;
+		"echo \"1-1\" > /sys/bus/usb/drivers/usb/unbind && sleep 2 && echo \"1-1\" > /sys/bus/usb/drivers/usb/bind".Bash();
+		"echo \"2-1\" > /sys/bus/usb/drivers/usb/unbind && sleep 2 && echo \"2-1\" > /sys/bus/usb/drivers/usb/bind".Bash();
+		logger.LogError("Critical error - reset usb hubs");
 	}
 
 	public static void NolteReset(Device device, ILogger logger)
@@ -49,22 +42,16 @@ internal static class ConnectionManager
 			NolteCounters.TryRemove(device.Name, out _);
 			return;
 		}
-		if (!NolteCounters.TryGetValue(device.Name, out var currentCount))
-		{
-			NolteCounters[device.Name] = 1;
-			return;
-		}
 
-		if (currentCount > AppConfig.RestartCount)
+		NolteCounters.TryGetValue(device.Name, out var count);
+		if (count > AppConfig.RestartCount)
 		{
 			NolteCounters[device.Name] = 1;
 			$"qmicli -p -d /dev/{device.Name} --dms-set-operating-mode=reset".Bash();
 			logger.LogError($"{device.Name} NoLTE reset");
+			return;
 		}
-		else
-		{
-			NolteCounters[device.Name] = currentCount + 1;
-		}
+		NolteCounters[device.Name] = count + 1;
 	}
 
 	public static string ConnectionDown(string deviceName, ILogger logger)
@@ -82,38 +69,33 @@ internal static class ConnectionManager
 			return ConnectionResult.Skipped;
 		}
 
-		var response = $"nmcli -w 10 connection up {deviceName}-conn".Bash();
-		if (response.ToLower().Contains("failed") || response.ToLower().Contains("timeout"))
-		{
-			CooldownCounters[deviceName] = AppConfig.CooldownCycles;
-			if (!ConnectionResetCounters.TryGetValue(deviceName, out var currentCount))
-			{
-				ConnectionResetCounters[deviceName] = 1;
-			}
-			else if (currentCount > AppConfig.RestartCount)
-			{
-				ConnectionResetCounters[deviceName] = 1;
-				$"qmicli -p -d /dev/{deviceName} --dms-set-operating-mode=reset".Bash();
-				logger.LogError($"{deviceName} POWER REBOOT");
-			}
-			else
-			{
-				if (currentCount == 7)
-				{
-					$"qmicli -p -d /dev/{deviceName} --uim-sim-power-off=1".Bash();
-					Thread.Sleep(1500);
-					$"qmicli -p -d /dev/{deviceName} --uim-sim-power-on=1".Bash();
-					logger.LogError($"{deviceName} SIM REBOOT");
-				}
-				ConnectionResetCounters[deviceName] = currentCount + 1;
-			}
-		}
-		else
+		var response = $"nmcli -w 10 connection up {deviceName}-conn".Bash().ToLower();
+		if (!response.Contains("failed") && !response.Contains("timeout"))
 		{
 			ConnectionResetCounters[deviceName] = 1;
 			CooldownCounters.TryRemove(deviceName, out _);
 			return ConnectionResult.Success;
 		}
+
+		CooldownCounters[deviceName] = AppConfig.CooldownCycles;
+		ConnectionResetCounters.TryGetValue(deviceName, out var count);
+
+		if (count > AppConfig.RestartCount)
+		{
+			ConnectionResetCounters[deviceName] = 1;
+			$"qmicli -p -d /dev/{deviceName} --dms-set-operating-mode=reset".Bash();
+			logger.LogError($"{deviceName} POWER REBOOT");
+			return ConnectionResult.Failed;
+		}
+
+		if (count == AppConfig.SimRebootThreshold)
+		{
+			$"qmicli -p -d /dev/{deviceName} --uim-sim-power-off=1".Bash();
+			Thread.Sleep(1500);
+			$"qmicli -p -d /dev/{deviceName} --uim-sim-power-on=1".Bash();
+			logger.LogError($"{deviceName} SIM REBOOT");
+		}
+		ConnectionResetCounters[deviceName] = count + 1;
 		return ConnectionResult.Failed;
 	}
 }
