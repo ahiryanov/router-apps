@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -30,7 +31,7 @@ class Program
 		using var sigInt = PosixSignalRegistration.Create(PosixSignal.SIGINT, OnShutdown);
 
 		var pingImpl = AppConfig.IsPingIputils ? "iputils" : "busybox";
-		logger.LogInformation($"lte-reboot daemon started # interval: {DecisionInterval.TotalSeconds:F0}s # srv: {AppConfig.Srv} # ping: {pingImpl} # flags: {MptcpManager.SubflowFlags}");
+		logger.LogInformation($"lte-reboot daemon started # interval: {DecisionInterval.TotalSeconds:F0}s # srv: {AppConfig.Srv} # ping: {pingImpl} # flags: {MptcpManager.SubflowFlags} # MaxLoss: {AppConfig.MaxLoss}, MaxRtt: {AppConfig.MaxRtt}");
 
 		while (!cts.IsCancellationRequested)
 		{
@@ -72,24 +73,36 @@ class Program
 		MptcpManager.RecreateDeadSubflow(logger, subflows);
 
 		var devices = ModemInfo.DiscoverDevices();
-
-		logger.LogInformation($"LTE count: {devices.Count}" + $" # MaxLoss {AppConfig.MaxLoss}, MaxRtt {AppConfig.MaxRtt}");
-		ConnectionManager.DeviceCountCheck(devices.Count, logger);
 		devices = devices.OrderBy(m => m.Name).ToList();
+
+		var subflowsByIface = new Dictionary<string, SubflowMetrics>(StringComparer.Ordinal);
+		foreach (var d in devices)
+		{
+			var ip = MptcpManager.GetRealModemIp(d.Iface);
+			if (!string.IsNullOrEmpty(ip) && subflows.TryGetValue(ip, out var m))
+				subflowsByIface[d.Iface] = m;
+		}
+
+		var throughput = ThroughputTracker.Sample(devices, logger);
+		var ctx = ChannelEvaluator.BuildContext(throughput);
+
+		string tunnelTxt = ctx.TunnelKbps.HasValue ? $"{ctx.TunnelKbps.Value / 1000.0:F2}Mbps" : "n/a";
+		logger.LogInformation($"LTE count: {devices.Count} # idle:{ctx.IsIdle} # tunnel({ctx.TunnelIface ?? "none"}):{tunnelTxt} # maxTx:{ctx.MaxTxKbps / 1000.0:F2}Mbps");
+		ConnectionManager.DeviceCountCheck(devices.Count, logger);
 
 		Parallel.ForEach(devices, device =>
 		{
 			var endpoint = $"ip mptcp endpoint | grep {device.Iface}".Bash();
 			var endpointId = !string.IsNullOrWhiteSpace(endpoint) ? endpoint.Split()[2] : null;
-			var endpointIsBackup = endpoint?.Contains("backup");
+			var endpointIsBackup = endpoint?.Contains("backup") == true;
 
 			switch (device.State)
 			{
 				case "connected":
-					var deviceIp = MptcpManager.GetRealModemIp(device.Iface);
-					subflows.TryGetValue(deviceIp ?? string.Empty, out var ssMetrics);
+					subflowsByIface.TryGetValue(device.Iface, out var ssMetrics);
+					ctx.PerModemKbps.TryGetValue(device.Iface, out double modemKbps);
 
-					var ping = $"ping {AppConfig.Srv} -I {device.Iface} -A -w 1 -q -s 1400".Bash();
+					var ping = $"ping -c 5 -i 0.2 -W 1 -q -s 64 -I {device.Iface} {AppConfig.Srv}".Bash();
 					var (PacketReceive, PacketLoss, AvgRtt) = ChannelMetrics.ParsePing(ping, AppConfig.IsPingIputils);
 
 					var route = ChannelMetrics.GetRouteWithFlush(device.Iface, device.Name, logger);
@@ -97,25 +110,36 @@ class Program
 					var num = Regex.Match(device.Iface, @"\d+").Value;
 					var channelState = ChannelMetrics.ComputeState(PacketLoss, AvgRtt, PacketReceive, ssMetrics);
 
-					var ssLog = ssMetrics != null ? $" # ssRTT: {ssMetrics.RttMs:F1}/{ssMetrics.RttVar:F1}ms" : "";
-					logger.LogInformation($"{device.Iface} {device.State}. Rcv: {PacketReceive} # Loss%: {(int)PacketLoss} # RTTms: {AvgRtt}{ssLog} # State: {channelState} # {device.Operator} # RSSI: {device.Rssi} # Mode: {device.MobileMode}");
+					var history = ChannelHistory.Get(device.Iface);
+					ChannelHistory.UpdateEma(history, AvgRtt, PacketLoss);
 
-					if (PacketLoss > AppConfig.MaxLoss || AvgRtt > AppConfig.MaxRtt || device.Rssi! < -85 || channelState > 55 || (device.MobileMode != "LTE" && device.MobileMode != "Unknown"))
+					var decision = ChannelEvaluator.Decide(device, PacketLoss, AvgRtt, ctx, history, logger);
+
+					var ssLog = ssMetrics != null
+						? $" # ssRTT:{ssMetrics.RttMs:F1}/{ssMetrics.RttVar:F1}ms # delivery:{ssMetrics.DeliveryRateKbps / 1000.0:F2}Mbps"
+						: "";
+					logger.LogInformation($"{device.Iface} {device.State}. Rcv:{PacketReceive} Loss%:{(int)PacketLoss} RTT:{AvgRtt}ms{ssLog} # tx:{modemKbps / 1000.0:F2}Mbps # ema(rtt/loss):{history.EmaRttMs:F0}/{history.EmaLossPct:F0} # state:{channelState} # {device.Operator} RSSI:{device.Rssi} Mode:{device.MobileMode}");
+
+					if (decision.ShouldBackup)
 					{
 						if (!string.IsNullOrWhiteSpace(route) && routeMetric < 1100)
 						{
 							$"ip route del {AppConfig.Srv} dev {device.Iface}".Bash();
 							$"ip route add {AppConfig.Srv} dev {device.Iface} metric {routeMetric + 1100}".Bash();
 						}
-						$"ip mptcp endpoint change id {endpointId} backup".Bash();
-						logger.LogWarning($"{device.Name} {device.Iface} marked as BACKUP");
+						if (!string.IsNullOrWhiteSpace(endpointId))
+						{
+							$"ip mptcp endpoint change id {endpointId} backup".Bash();
+							if (!endpointIsBackup)
+								logger.LogWarning($"{device.Name} {device.Iface} marked as BACKUP ({decision.Reason})");
+						}
 					}
 					else
 					{
 						$"ip route del {AppConfig.Srv} dev {device.Iface}".Bash();
 						$"ip route replace {AppConfig.Srv} dev {device.Iface} metric {channelState}{num}".Bash();
 
-						MptcpManager.EnsureActiveSubflow(device, endpoint, endpointId, (bool)endpointIsBackup, logger);
+						MptcpManager.EnsureActiveSubflow(device, endpoint, endpointId, endpointIsBackup, logger);
 
 						if (string.IsNullOrWhiteSpace(route))
 						{
@@ -133,6 +157,7 @@ class Program
 					break;
 
 				case "connecting (prepare)":
+					ChannelHistory.Reset(device.Iface);
 					ConnectionManager.ConnectionDown(device.Name, logger);
 					$"ip mptcp endpoint del id {endpointId}".Bash();
 					Thread.Sleep(1000);
@@ -147,6 +172,7 @@ class Program
 					break;
 
 				case "disconnected":
+					ChannelHistory.Reset(device.Iface);
 					$"ip mptcp endpoint del id {endpointId}".Bash();
 					var disconnectResult = ConnectionManager.ConnectionUp(device.Name, logger);
 					if (disconnectResult == ConnectionResult.Failed)
@@ -159,6 +185,7 @@ class Program
 					break;
 
 				case "unavailable":
+					ChannelHistory.Reset(device.Iface);
 					logger.LogInformation($"{device.Name} ({device.Iface}) state {device.State}");
 					break;
 			}

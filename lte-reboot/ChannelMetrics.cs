@@ -52,35 +52,26 @@ internal static class ChannelMetrics
 	{
 		const int RttGoodMs = 50;
 		const int RttBadMs = 200;
-		const int PktsMinPerSec = 2;
-		const int PktsGoodPerSec = 25;
 
 		packetLoss = Clamp(packetLoss, 0, 100);
 		avgRttMs = Math.Max(0, avgRttMs);
-		receivedPackets = Math.Max(0, receivedPackets);
 
 		if (receivedPackets == 0 || packetLoss == 100)
 			return 99;
 
 		double sLoss = packetLoss;
-
 		double sPingRtt = Clamp(100.0 * (avgRttMs - RttGoodMs) / (RttBadMs - RttGoodMs), 0.0, 100.0);
-
-		double sPkts;
-		if (receivedPackets >= PktsGoodPerSec) sPkts = 0.0;
-		else if (receivedPackets <= PktsMinPerSec) sPkts = 100.0;
-		else sPkts = 100.0 * (PktsGoodPerSec - receivedPackets) / (PktsGoodPerSec - PktsMinPerSec);
 
 		double state100;
 		if (ss != null)
 		{
 			double sSsRtt = Clamp(100.0 * (ss.RttMs - RttGoodMs) / (RttBadMs - RttGoodMs), 0.0, 100.0);
 			double sVar = Clamp(100.0 * (ss.StabilityRatio - 0.15) / (0.50 - 0.15), 0.0, 100.0);
-			state100 = 0.30 * sLoss + 0.10 * sPingRtt + 0.25 * sSsRtt + 0.10 * sVar + 0.25 * sPkts;
+			state100 = 0.55 * sLoss + 0.10 * sPingRtt + 0.25 * sSsRtt + 0.10 * sVar;
 		}
 		else
 		{
-			state100 = 0.40 * sLoss + 0.30 * sPingRtt + 0.30 * sPkts;
+			state100 = 0.70 * sLoss + 0.30 * sPingRtt;
 		}
 
 		return Math.Max(0, Math.Min(99, (int)Math.Round(state100)));

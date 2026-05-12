@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 
 namespace lte_reboot;
 
-internal record SubflowMetrics(double RttMs, double RttVar)
+internal record SubflowMetrics(double RttMs, double RttVar, double DeliveryRateKbps)
 {
     public double StabilityRatio => RttMs > 0 ? RttVar / RttMs : 1.0;
 }
@@ -125,13 +125,32 @@ internal static class MptcpManager
 			var rttMatch = Regex.Match(infoLine, @"\brtt:(?<rtt>\d+(?:\.\d+)?)/(?<var>\d+(?:\.\d+)?)");
 			if (!rttMatch.Success) continue;
 
-			if (double.TryParse(rttMatch.Groups["rtt"].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out double rtt) &&
-				double.TryParse(rttMatch.Groups["var"].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out double rttVar))
-			{
-				result[localIp] = new SubflowMetrics(rtt, rttVar);
-			}
+			if (!double.TryParse(rttMatch.Groups["rtt"].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out double rtt) ||
+				!double.TryParse(rttMatch.Groups["var"].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out double rttVar))
+				continue;
+
+			double deliveryRateKbps = 0;
+			var drMatch = Regex.Match(infoLine, @"\bdelivery_rate\s+(?<v>\d+(?:\.\d+)?)(?<u>bps|kbps|Mbps|Gbps)");
+			if (drMatch.Success)
+				deliveryRateKbps = ParseRateToKbps(drMatch.Groups["v"].Value, drMatch.Groups["u"].Value);
+
+			result[localIp] = new SubflowMetrics(rtt, rttVar, deliveryRateKbps);
 		}
 		return result;
+	}
+
+	private static double ParseRateToKbps(string value, string unit)
+	{
+		if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double v))
+			return 0;
+		return unit switch
+		{
+			"bps" => v / 1000.0,
+			"kbps" => v,
+			"Mbps" => v * 1000.0,
+			"Gbps" => v * 1_000_000.0,
+			_ => 0
+		};
 	}
 
 	public static void RecreateDeadSubflow(ILogger logger, Dictionary<string, SubflowMetrics> subflows)
