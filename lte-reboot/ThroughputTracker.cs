@@ -29,7 +29,7 @@ internal static class ThroughputTracker
 		var ifaces = new List<string>();
 		if (tunnelIface != null) ifaces.Add(tunnelIface);
 		foreach (var d in devices)
-			if (!string.IsNullOrWhiteSpace(d.Iface))
+			if (!string.IsNullOrWhiteSpace(d.Iface) && d.State == "connected")
 				ifaces.Add(d.Iface);
 
 		double? tunnelKbps = null;

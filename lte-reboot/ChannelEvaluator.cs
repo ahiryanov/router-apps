@@ -102,7 +102,7 @@ internal static class ChannelEvaluator
 		while (history.RecentBad.Count > HistoryWindow)
 			history.RecentBad.Dequeue();
 
-		logger.LogInformation($"decide {device.Iface} bad={bad} consec={history.ConsecutiveBad}/{history.ConsecutiveGood} badCnt={badCount}/{history.RecentBad.Count} reqGood={requiredGood} -> {(decision ? "BACKUP" : "PRIMARY")} ({flipReason})");
+		logger.LogInformation($"decide {device.Iface} bad={bad} -> {(decision ? "BACKUP" : "PRIMARY")} ({flipReason})");
 		history.LastBackup = decision;
 		return new ChannelDecision(decision, flipReason);
 	}

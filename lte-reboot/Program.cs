@@ -86,8 +86,7 @@ class Program
 		var throughput = ThroughputTracker.Sample(devices, logger);
 		var ctx = ChannelEvaluator.BuildContext(throughput);
 
-		string tunnelTxt = ctx.TunnelKbps.HasValue ? $"{ctx.TunnelKbps.Value / 1000.0:F2}Mbps" : "n/a";
-		logger.LogInformation($"LTE count: {devices.Count} # idle:{ctx.IsIdle} # tunnel({ctx.TunnelIface ?? "none"}):{tunnelTxt} # maxTx:{ctx.MaxTxKbps / 1000.0:F2}Mbps");
+		logger.LogInformation($"LTE count: {devices.Count} # idle:{ctx.IsIdle} # maxTx:{ctx.MaxTxKbps / 1000.0:F2}Mbps");
 		ConnectionManager.DeviceCountCheck(devices.Count, logger);
 
 		Parallel.ForEach(devices, device =>
@@ -111,14 +110,11 @@ class Program
 					var channelState = ChannelMetrics.ComputeState(PacketLoss, AvgRtt, PacketReceive, ssMetrics);
 
 					var history = ChannelHistory.Get(device.Iface);
-					ChannelHistory.UpdateEma(history, AvgRtt, PacketLoss);
 
 					var decision = ChannelEvaluator.Decide(device, PacketLoss, AvgRtt, ctx, history, logger);
 
-					var ssLog = ssMetrics != null
-						? $" # ssRTT:{ssMetrics.RttMs:F1}/{ssMetrics.RttVar:F1}ms # delivery:{ssMetrics.DeliveryRateKbps / 1000.0:F2}Mbps"
-						: "";
-					logger.LogInformation($"{device.Iface} {device.State}. Rcv:{PacketReceive} Loss%:{(int)PacketLoss} RTT:{AvgRtt}ms{ssLog} # tx:{modemKbps / 1000.0:F2}Mbps # ema(rtt/loss):{history.EmaRttMs:F0}/{history.EmaLossPct:F0} # state:{channelState} # {device.Operator} RSSI:{device.Rssi} Mode:{device.MobileMode}");
+					var ssLog = ssMetrics != null ? $" # ssRTT:{ssMetrics.RttMs:F1}/{ssMetrics.RttVar:F1}ms" : "";
+					logger.LogInformation($"{device.Iface} {device.State}. Rcv:{PacketReceive} Loss%:{(int)PacketLoss} RTT:{AvgRtt}ms{ssLog} # tx:{modemKbps / 1000.0:F2}Mbps # state:{channelState} # {device.Operator} RSSI:{device.Rssi} Mode:{device.MobileMode}");
 
 					if (decision.ShouldBackup)
 					{
