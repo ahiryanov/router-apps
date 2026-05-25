@@ -17,6 +17,7 @@ internal static class ChannelEvaluator
 {
 	private const int IdleThresholdKbps = 5000;
 	private const double OutlierRatio = 0.20;
+	private const int TxOutlierCeilingKbps = 3000;
 	private const int BadCycles = 2;
 	private const int BaseGoodCycles = 3;
 	private const int MaxQuarantinePenalty = 7;
@@ -55,6 +56,7 @@ internal static class ChannelEvaluator
 		if (hardReason == null && !ctx.IsIdle && !history.LastBackup)
 		{
 			if (modemKbps > 0 && ctx.MaxTxKbps > 0
+				&& modemKbps < TxOutlierCeilingKbps
 				&& modemKbps < OutlierRatio * ctx.MaxTxKbps)
 			{
 				softReason = $"txOutlier {modemKbps / 1000.0:F2}/{ctx.MaxTxKbps / 1000.0:F2}Mbps";
