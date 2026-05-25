@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Linq;
-using Microsoft.Extensions.Logging;
 
 namespace lte_reboot;
 
@@ -40,8 +39,7 @@ internal static class ChannelEvaluator
 		double pingLossPct,
 		int pingRttMs,
 		RouterContext ctx,
-		ChannelState history,
-		ILogger logger)
+		ChannelState history)
 	{
 		ctx.PerModemKbps.TryGetValue(device.Iface, out double modemKbps);
 		bool loaded = modemKbps > LoadedTxThresholdKbps;
@@ -102,7 +100,6 @@ internal static class ChannelEvaluator
 		while (history.RecentBad.Count > HistoryWindow)
 			history.RecentBad.Dequeue();
 
-		logger.LogInformation($"decide {device.Iface} bad={bad} -> {(decision ? "BACKUP" : "PRIMARY")} ({flipReason})");
 		history.LastBackup = decision;
 		return new ChannelDecision(decision, flipReason);
 	}

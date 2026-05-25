@@ -111,10 +111,10 @@ class Program
 
 					var history = ChannelHistory.Get(device.Iface);
 
-					var decision = ChannelEvaluator.Decide(device, PacketLoss, AvgRtt, ctx, history, logger);
+					var decision = ChannelEvaluator.Decide(device, PacketLoss, AvgRtt, ctx, history);
 
 					var ssLog = ssMetrics != null ? $" # ssRTT:{ssMetrics.RttMs:F1}/{ssMetrics.RttVar:F1}ms" : "";
-					logger.LogInformation($"{device.Iface} {device.State}. Rcv:{PacketReceive} Loss%:{(int)PacketLoss} RTT:{AvgRtt}ms{ssLog} # tx:{modemKbps / 1000.0:F2}Mbps # state:{channelState} # {device.Operator} RSSI:{device.Rssi} Mode:{device.MobileMode}");
+					logger.LogInformation($"{device.Iface} {(decision.ShouldBackup ? "BACKUP" : "PRIMARY")} ({decision.Reason}) # Rcv:{PacketReceive} Loss%:{(int)PacketLoss} RTT:{AvgRtt}ms{ssLog} # tx:{modemKbps / 1000.0:F2}Mbps # state:{channelState} # {device.Operator} RSSI:{device.Rssi} Mode:{device.MobileMode}");
 
 					if (decision.ShouldBackup)
 					{
