@@ -20,8 +20,8 @@ internal static class ChannelEvaluator
 	private const int TxOutlierCeilingKbps = 3000;
 	private const int BadCycles = 2;
 	private const int BaseGoodCycles = 3;
-	private const int MaxQuarantinePenalty = 7;
-	private const int HistoryWindow = 30;
+	private const int MaxBadScore = 7;
+	private const double BadScoreDecay = 0.6;
 	private const int HardLossPct = 25;
 	private const int HardLossLoadedPct = 50;
 	private const int HardRttMs = 250;
@@ -68,15 +68,17 @@ internal static class ChannelEvaluator
 		{
 			history.ConsecutiveGood = 0;
 			history.ConsecutiveBad++;
+			history.BadScore = System.Math.Min(MaxBadScore, history.BadScore + 1);
 		}
 		else
 		{
 			history.ConsecutiveBad = 0;
 			history.ConsecutiveGood++;
+			if (!history.LastBackup)
+				history.BadScore *= BadScoreDecay;
 		}
 
-		int badCount = history.RecentBad.Count(b => b);
-		int requiredGood = BaseGoodCycles + System.Math.Min(MaxQuarantinePenalty, badCount);
+		int requiredGood = BaseGoodCycles + (int)System.Math.Round(history.BadScore);
 
 		string flipReason;
 		bool decision;
@@ -97,10 +99,6 @@ internal static class ChannelEvaluator
 				? $"pending-bad ({hardReason ?? softReason}) {history.ConsecutiveBad}/{BadCycles}"
 				: $"pending-good {history.ConsecutiveGood}/{requiredGood}";
 		}
-
-		history.RecentBad.Enqueue(bad);
-		while (history.RecentBad.Count > HistoryWindow)
-			history.RecentBad.Dequeue();
 
 		history.LastBackup = decision;
 		return new ChannelDecision(decision, flipReason);

@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 
 namespace lte_reboot;
 
@@ -8,7 +7,7 @@ internal class ChannelState
 	public int ConsecutiveBad;
 	public int ConsecutiveGood;
 	public bool LastBackup;
-	public Queue<bool> RecentBad = new();
+	public double BadScore;
 }
 
 internal static class ChannelHistory
