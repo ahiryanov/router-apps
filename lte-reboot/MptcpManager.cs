@@ -154,7 +154,15 @@ internal static class MptcpManager
 
 	public static string GetRealModemIp(string iface)
 	{
+		// Broken MBIM modems leave us without a usable iface name; skip them
+		// instead of feeding garbage to the shell / JSON parser.
+		if (string.IsNullOrWhiteSpace(iface) || !Regex.IsMatch(iface, @"^[A-Za-z0-9._-]+$"))
+			return null;
+
 		var json = $"ip -j address show dev {iface}".Bash();
+		if (string.IsNullOrWhiteSpace(json) || (json[0] != '[' && json[0] != '{'))
+			return null;
+
 		using var doc = JsonDocument.Parse(json);
 
 		if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
