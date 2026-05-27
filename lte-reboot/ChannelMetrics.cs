@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 
@@ -6,25 +8,38 @@ namespace lte_reboot;
 
 internal static class ChannelMetrics
 {
-	public static (int PacketReceive, double PacketLoss, int AvgRtt) ParsePing(string pingOutput, bool isIputils)
+	public static (int PacketReceive, double PacketLoss, int MedianRtt) ParsePing(string pingOutput, bool isIputils)
 	{
 		int packetReceive = 0;
 		double packetLoss = 100;
-		int avgRtt = 10000;
 		if (isIputils)
 		{
 			int.TryParse(new Regex(@"(\w+)\s" + "received").Match(pingOutput)?.Groups[1]?.Value, out packetReceive);
 			double.TryParse(new Regex(@"([\d.,]+)%\s*packet\s+loss").Match(pingOutput)?.Groups[1]?.Value, out packetLoss);
-			int.TryParse(new Regex("/" + @"(\d+)" + ".").Match(pingOutput)?.Groups[1]?.Value, out avgRtt);
 		}
 		else
 		{
 			int.TryParse(new Regex(@"(\w+)\s" + "packets received").Match(pingOutput)?.Groups[1]?.Value, out packetReceive);
 			double.TryParse(new Regex(@"(\d+)%\s" + "packet loss").Match(pingOutput)?.Groups[1]?.Value, out packetLoss);
-			int.TryParse(new Regex("/" + @"(\d+)" + ".").Match(pingOutput)?.Groups[1]?.Value, out avgRtt);
 		}
-		avgRtt = avgRtt == 0 ? 10000 : avgRtt;
-		return (packetReceive, packetLoss, avgRtt);
+		return (packetReceive, packetLoss, MedianRtt(pingOutput));
+	}
+
+	// Медиана RTT по отдельным пакетам — гасит warm-up выбросы при пробуждении радио из RRC idle.
+	private static int MedianRtt(string pingOutput)
+	{
+		var times = new List<double>();
+		foreach (Match m in Regex.Matches(pingOutput, @"time[=<]\s*([\d.]+)"))
+			if (double.TryParse(m.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var t))
+				times.Add(t);
+
+		if (times.Count == 0)
+			return 10000;
+
+		times.Sort();
+		int n = times.Count;
+		double median = (n % 2 == 1) ? times[n / 2] : (times[n / 2 - 1] + times[n / 2]) / 2.0;
+		return (int)Math.Round(median);
 	}
 
 	public static string GetRouteWithFlush(string iface, string deviceName, ILogger logger)
@@ -48,19 +63,19 @@ internal static class ChannelMetrics
 		return 0;
 	}
 
-	public static int ComputeState(double packetLoss, int avgRttMs, int receivedPackets, SubflowMetrics ss = null)
+	public static int ComputeState(double packetLoss, int medianRttMs, int receivedPackets, SubflowMetrics ss = null)
 	{
 		const int RttGoodMs = 50;
 		const int RttBadMs = 200;
 
 		packetLoss = Clamp(packetLoss, 0, 100);
-		avgRttMs = Math.Max(0, avgRttMs);
+		medianRttMs = Math.Max(0, medianRttMs);
 
 		if (receivedPackets == 0 || packetLoss == 100)
 			return 99;
 
 		double sLoss = packetLoss;
-		double sPingRtt = Clamp(100.0 * (avgRttMs - RttGoodMs) / (RttBadMs - RttGoodMs), 0.0, 100.0);
+		double sPingRtt = Clamp(100.0 * (medianRttMs - RttGoodMs) / (RttBadMs - RttGoodMs), 0.0, 100.0);
 
 		double state100;
 		if (ss != null)

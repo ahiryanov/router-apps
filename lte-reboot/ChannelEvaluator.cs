@@ -38,7 +38,7 @@ internal static class ChannelEvaluator
 	public static ChannelDecision Decide(
 		Device device,
 		double pingLossPct,
-		int pingRttMs,
+		int pingMedianRttMs,
 		RouterContext ctx,
 		ChannelState history)
 	{
@@ -48,9 +48,9 @@ internal static class ChannelEvaluator
 
 		string hardReason = null;
 		if (device.MobileMode != "LTE" && device.MobileMode != "Unknown") hardReason = $"mode={device.MobileMode}";
-		else if (pingLossPct > lossThreshold) hardReason = $"hardLoss={pingLossPct:F0}%{(loaded ? " loaded" : "")}";
-		else if (!loaded && pingRttMs > HardRttMs) hardReason = $"hardRtt={pingRttMs}ms";
-		else if (!loaded && pingLossPct > AppConfig.MaxLoss && pingRttMs > AppConfig.MaxRtt) hardReason = $"loss+rtt={pingLossPct:F0}%/{pingRttMs}ms";
+		else if (!loaded && pingLossPct > lossThreshold) hardReason = $"hardLoss={pingLossPct:F0}%{(loaded ? " loaded" : "")}";
+		else if (!loaded && pingMedianRttMs > HardRttMs) hardReason = $"hardRtt={pingMedianRttMs}ms";
+		else if (!loaded && pingLossPct > AppConfig.MaxLoss && pingMedianRttMs > AppConfig.MaxRtt) hardReason = $"loss+rtt={pingLossPct:F0}%/{pingMedianRttMs}ms";
 
 		string softReason = null;
 		if (hardReason == null && !ctx.IsIdle && !history.LastBackup)
@@ -59,7 +59,7 @@ internal static class ChannelEvaluator
 				&& modemKbps < TxOutlierCeilingKbps
 				&& modemKbps < OutlierRatio * ctx.MaxTxKbps)
 			{
-				softReason = $"txOutlier {modemKbps / 1000.0:F2}/{ctx.MaxTxKbps / 1000.0:F2}Mbps";
+				softReason = $"txOut {modemKbps / 1000.0:F2}/{ctx.MaxTxKbps / 1000.0:F2}Mbps";
 			}
 		}
 
@@ -96,8 +96,8 @@ internal static class ChannelEvaluator
 		{
 			decision = history.LastBackup;
 			flipReason = bad
-				? $"pending-bad ({hardReason ?? softReason}) {history.ConsecutiveBad}/{BadCycles}"
-				: $"pending-good {history.ConsecutiveGood}/{requiredGood}";
+				? $"try-bad ({hardReason ?? softReason}) {history.ConsecutiveBad}/{BadCycles}"
+				: $"try-good {history.ConsecutiveGood}/{requiredGood}";
 		}
 
 		history.LastBackup = decision;

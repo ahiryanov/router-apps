@@ -101,20 +101,20 @@ class Program
 					subflowsByIface.TryGetValue(device.Iface, out var ssMetrics);
 					ctx.PerModemKbps.TryGetValue(device.Iface, out double modemKbps);
 
-					var ping = $"ping -c 5 -i 0.2 -W 1 -q -s 64 -I {device.Iface} {AppConfig.Srv}".Bash();
-					var (PacketReceive, PacketLoss, AvgRtt) = ChannelMetrics.ParsePing(ping, AppConfig.IsPingIputils);
+					var ping = $"ping -c 7 -i 0.2 -W 1 -s 64 -I {device.Iface} {AppConfig.Srv}".Bash();
+					var (PacketReceive, PacketLoss, MedianRtt) = ChannelMetrics.ParsePing(ping, AppConfig.IsPingIputils);
 
 					var route = ChannelMetrics.GetRouteWithFlush(device.Iface, device.Name, logger);
 					var routeMetric = ChannelMetrics.GetRouteMetric(route);
 					var num = Regex.Match(device.Iface, @"\d+").Value;
-					var channelState = ChannelMetrics.ComputeState(PacketLoss, AvgRtt, PacketReceive, ssMetrics);
+					var channelState = ChannelMetrics.ComputeState(PacketLoss, MedianRtt, PacketReceive, ssMetrics);
 
 					var history = ChannelHistory.Get(device.Iface);
 
-					var decision = ChannelEvaluator.Decide(device, PacketLoss, AvgRtt, ctx, history);
+					var decision = ChannelEvaluator.Decide(device, PacketLoss, MedianRtt, ctx, history);
 
 					var ssLog = ssMetrics != null ? $" # ssRTT:{ssMetrics.RttMs:F1}/{ssMetrics.RttVar:F1}ms" : "";
-					logger.LogInformation($"{device.Iface} {(decision.ShouldBackup ? "BACKUP" : "PRIMARY")} ({decision.Reason}) # Rcv:{PacketReceive} Loss%:{(int)PacketLoss} RTT:{AvgRtt}ms{ssLog} # tx:{modemKbps / 1000.0:F2}Mbps # state:{channelState} # {device.Operator} RSSI:{device.Rssi} Mode:{device.MobileMode}");
+					logger.LogInformation($"{device.Iface} {(decision.ShouldBackup ? "BACKUP" : "PRIME")} ({decision.Reason}) # Rcv:{PacketReceive} Loss%:{(int)PacketLoss} medRTT:{MedianRtt}ms{ssLog} # tx:{modemKbps / 1000.0:F2}Mbps # state:{channelState} # {device.Operator} RSSI:{device.Rssi} Mode:{device.MobileMode}");
 
 					if (decision.ShouldBackup)
 					{
