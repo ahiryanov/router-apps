@@ -16,7 +16,7 @@ internal record ChannelDecision(bool ShouldBackup, string Reason);
 internal static class ChannelEvaluator
 {
 	private const int IdleThresholdKbps = 5000;
-	private const double OutlierRatio = 0.20;
+	private const double OutlierRatio = 0.15;
 	private const int TxOutlierCeilingKbps = 3000;
 	private const int BadCycles = 2;
 	private const int BaseGoodCycles = 3;
