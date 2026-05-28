@@ -12,7 +12,9 @@ namespace lte_reboot;
 
 class Program
 {
-	static void Main(string[] args)
+	private static readonly TimeSpan DecisionInterval = TimeSpan.FromSeconds(20);
+
+	static async Task Main(string[] args)
 	{
 		using var loggerFactory = LoggerFactory.Create(builder =>
 		{
@@ -69,9 +71,7 @@ class Program
 		MptcpManager.CheckMultipleEndpoints(logger);
 		var subflows = MptcpManager.GetSubflowMetrics(AppConfig.Srv);
 		MptcpManager.RecreateDeadSubflow(logger, subflows);
-		AppConfig.ApplyArgs(args);
 
-		bool isPingIputils = "ping -V".Bash().Contains("iputils");
 		var devices = ModemInfo.DiscoverDevices();
 		devices = devices.OrderBy(m => m.Name).ToList();
 
@@ -159,7 +159,7 @@ class Program
 					ChannelHistory.Reset(device.Iface);
 					ConnectionManager.ConnectionDown(device.Name, logger);
 					$"ip mptcp endpoint del id {endpointId}".Bash();
-					Thread.Sleep(2000);
+					Thread.Sleep(1000);
 					var prepareResult = ConnectionManager.ConnectionUp(device.Name, logger);
 					if (prepareResult == ConnectionResult.Failed)
 					{
