@@ -9,7 +9,11 @@ internal static class AppConfig
 	internal static int MaxLoss = 25;
 	internal const int RestartCount = 30;
 	internal const int CooldownCycles = 5;
-	internal const string LogFile = "/tmp/lte";
+	internal const int SimRebootThreshold = 7;
+	internal const int ExpectedDeviceCount = 8;
+	internal const int LowDeviceThreshold = 6;
+	internal const int LowDeviceResetCycles = 2;
+	internal static readonly bool IsPingIputils = "ping -V".Bash().Contains("iputils");
 
 	internal static void DetectSrv()
 	{

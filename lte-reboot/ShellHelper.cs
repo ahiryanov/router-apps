@@ -21,9 +21,15 @@ public static class ShellHelper
 		};
 
 		process.Start();
-		string result = process.StandardOutput.ReadToEnd();
-		process.WaitForExit();
+		// Read async so a hung qmicli/mbimcli on a broken modem can't block us
+		// in ReadToEnd; the timeout below then actually fires.
+		var readTask = process.StandardOutput.ReadToEndAsync();
+		if (!process.WaitForExit(15000))
+		{
+			try { process.Kill(true); } catch { /* already gone */ }
+			return string.Empty;
+		}
 
-		return result.Trim();
+		return readTask.GetAwaiter().GetResult().Trim();
 	}
 }

@@ -22,11 +22,16 @@ internal static class ModemInfo
 			var state = parts?[1];
 			if (name?.Contains("cdc-wdm") != true)
 				return;
+			var iface = $"qmicli --silent -d /dev/{name} --get-wwan-iface".Bash().Replace("\n", "").Trim();
+			// qmicli fails on MBIM (or dead) modems: no usable iface -> skip the
+			// device so it doesn't poison the rest of the cycle.
+			if (string.IsNullOrWhiteSpace(iface) || !Regex.IsMatch(iface, @"^[A-Za-z0-9._-]+$"))
+				return;
 			var device = new Device
 			{
 				Name = name,
 				State = state,
-				Iface = $"qmicli --silent -d /dev/{name} --get-wwan-iface".Bash().Replace("\n", "")
+				Iface = iface
 			};
 			var qmicliOutput = $"qmicli -p -d /dev/{name} --nas-get-signal-info".Bash();
 			if (TryParseRssi(qmicliOutput, out var rssi))
