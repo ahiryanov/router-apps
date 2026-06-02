@@ -123,14 +123,11 @@ class Program
 							$"ip route del {AppConfig.Srv} dev {device.Iface}".Bash();
 							$"ip route add {AppConfig.Srv} dev {device.Iface} metric {routeMetric + 1100}".Bash();
 						}
-						if (!string.IsNullOrWhiteSpace(endpointId) && !endpointIsBackup)
+						if (!string.IsNullOrWhiteSpace(endpointId))
 						{
-							var realModemIp = MptcpManager.GetRealModemIp(device.Iface);
-							$"ip mptcp endpoint del id {endpointId}".Bash();
-							Thread.Sleep(500);
-							if (!string.IsNullOrWhiteSpace(realModemIp))
-								$"ip mptcp endpoint add {realModemIp} dev {device.Iface} {MptcpManager.SubflowFlags} backup".Bash();
-							logger.LogWarning($"{device.Name} {device.Iface} recreated as BACKUP ({decision.Reason})");
+							$"ip mptcp endpoint change id {endpointId} backup".Bash();
+							if (!endpointIsBackup)
+								logger.LogWarning($"{device.Name} {device.Iface} marked as BACKUP ({decision.Reason})");
 						}
 					}
 					else
