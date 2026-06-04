@@ -100,7 +100,11 @@ class Program
 				case "connected":
 					subflowsByIface.TryGetValue(device.Iface, out var ssMetrics);
 					ctx.PerModemKbps.TryGetValue(device.Iface, out double modemKbps);
-
+					if (endpointIsBackup) // additional ping for warmup modem if backup
+					{
+						$"ping {AppConfig.Srv} -I {device.Iface} -A -w 1 -q -s 1400".Bash();
+						Thread.Sleep(500);
+					}
 					var ping = $"ping -c 7 -i 0.2 -W 1 -s 64 -I {device.Iface} {AppConfig.Srv}".Bash();
 					var (PacketReceive, PacketLoss, MedianRtt) = ChannelMetrics.ParsePing(ping, AppConfig.IsPingIputils);
 
@@ -114,7 +118,7 @@ class Program
 					var decision = ChannelEvaluator.Decide(device, PacketLoss, MedianRtt, ctx, history);
 
 					var ssLog = ssMetrics != null ? $" # ssRTT:{ssMetrics.RttMs:F1}/{ssMetrics.RttVar:F1}ms" : "";
-					logger.LogInformation($"{device.Iface} {(decision.ShouldBackup ? "BACKUP" : "PRIME")} ({decision.Reason}) # Rcv:{PacketReceive} Loss%:{(int)PacketLoss} medRTT:{MedianRtt}ms{ssLog} # tx:{modemKbps / 1000.0:F2}Mbps # state:{channelState} # {device.Operator} RSSI:{device.Rssi} Mode:{device.MobileMode}");
+					logger.LogInformation($"{device.Iface} {(decision.ShouldBackup ? "BACKUP" : "PRIME")} ({decision.Reason}) # Rcv:{PacketReceive} Loss%:{(int)PacketLoss} RTT:{MedianRtt}ms{ssLog} # tx:{modemKbps / 1000.0:F2}Mbps # state:{channelState} # {device.Operator} RSSI:{device.Rssi} Mode:{device.MobileMode}");
 
 					if (decision.ShouldBackup)
 					{
