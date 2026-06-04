@@ -12,7 +12,7 @@ namespace lte_reboot;
 
 class Program
 {
-	private static readonly TimeSpan DecisionInterval = TimeSpan.FromSeconds(20);
+	private static readonly TimeSpan DecisionInterval = TimeSpan.FromSeconds(15);
 
 	static async Task Main(string[] args)
 	{
