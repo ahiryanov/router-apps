@@ -4,7 +4,8 @@ namespace lte_reboot;
 
 internal class ChannelState
 {
-	public int ConsecutiveBad;
+	public int ConsecutiveHardBad;
+	public int ConsecutiveSoftBad;
 	public int ConsecutiveGood;
 	public bool LastBackup;
 	public double BadScore;

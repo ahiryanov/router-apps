@@ -16,9 +16,10 @@ internal record ChannelDecision(bool ShouldBackup, string Reason);
 internal static class ChannelEvaluator
 {
 	private const int IdleThresholdKbps = 5000;
-	private const double OutlierRatio = 0.15;
+	private const double OutlierRatio = 0.10;
 	private const int TxOutlierCeilingKbps = 3000;
-	private const int BadCycles = 2;
+	private const int HardBadCycles = 2;
+	private const int SoftBadCycles = 6;
 	private const int BaseGoodCycles = 3;
 	private const int MaxBadScore = 7;
 	private const double BadScoreDecay = 0.6;
@@ -64,15 +65,15 @@ internal static class ChannelEvaluator
 		}
 
 		bool bad = hardReason != null || softReason != null;
+		history.ConsecutiveHardBad = hardReason != null ? history.ConsecutiveHardBad + 1 : 0;
+		history.ConsecutiveSoftBad = softReason != null ? history.ConsecutiveSoftBad + 1 : 0;
 		if (bad)
 		{
 			history.ConsecutiveGood = 0;
-			history.ConsecutiveBad++;
 			history.BadScore = System.Math.Min(MaxBadScore, history.BadScore + 1);
 		}
 		else
 		{
-			history.ConsecutiveBad = 0;
 			history.ConsecutiveGood++;
 			if (!history.LastBackup)
 				history.BadScore *= BadScoreDecay;
@@ -82,10 +83,15 @@ internal static class ChannelEvaluator
 
 		string flipReason;
 		bool decision;
-		if (bad && history.ConsecutiveBad >= BadCycles)
+		if (history.ConsecutiveHardBad >= HardBadCycles)
 		{
 			decision = true;
-			flipReason = hardReason ?? softReason;
+			flipReason = hardReason;
+		}
+		else if (history.ConsecutiveSoftBad >= SoftBadCycles)
+		{
+			decision = true;
+			flipReason = softReason;
 		}
 		else if (!bad && history.ConsecutiveGood >= requiredGood)
 		{
@@ -95,9 +101,11 @@ internal static class ChannelEvaluator
 		else
 		{
 			decision = history.LastBackup;
-			flipReason = bad
-				? $"try-bad ({hardReason ?? softReason}) {history.ConsecutiveBad}/{BadCycles}"
-				: $"try-good {history.ConsecutiveGood}/{requiredGood}";
+			flipReason = hardReason != null
+				? $"try-hard ({hardReason}) {history.ConsecutiveHardBad}/{HardBadCycles}"
+				: softReason != null
+					? $"try-soft ({softReason}) {history.ConsecutiveSoftBad}/{SoftBadCycles}"
+					: $"try-good {history.ConsecutiveGood}/{requiredGood}";
 		}
 
 		history.LastBackup = decision;
