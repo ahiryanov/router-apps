@@ -16,12 +16,11 @@ internal static class ConnectionManager
 
 	public static void DeviceCountCheck(int count, ILogger logger)
 	{
-		if (count == AppConfig.ExpectedDeviceCount)
+		if (count >= AppConfig.LowDeviceThreshold)
 		{
 			_lowDeviceCountCycles = 0;
 			return;
 		}
-		if (count >= AppConfig.LowDeviceThreshold) return;
 
 		if (_lowDeviceCountCycles <= AppConfig.LowDeviceResetCycles)
 		{

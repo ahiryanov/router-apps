@@ -5,13 +5,12 @@ namespace lte_reboot;
 internal static class AppConfig
 {
 	internal static string Srv;
-	internal static int MaxRtt = 200;
-	internal static int MaxLoss = 25;
+	internal const int MaxRtt = 200;
+	internal const int MaxLoss = 25;
 	internal const int RestartCount = 30;
 	internal const int CooldownCycles = 5;
 	internal const int SimRebootThreshold = 7;
-	internal const int ExpectedDeviceCount = 8;
-	internal const int LowDeviceThreshold = 6;
+	internal static int LowDeviceThreshold = 6;
 	internal const int LowDeviceResetCycles = 2;
 	internal static readonly bool IsPingIputils = "ping -V".Bash().Contains("iputils");
 
@@ -23,12 +22,7 @@ internal static class AppConfig
 
 	internal static void ApplyArgs(string[] args)
 	{
-		if (args.Length == 2)
-		{
-			int.TryParse(args[0], out var maxLoss);
-			int.TryParse(args[1], out var maxRtt);
-			MaxLoss = maxLoss;
-			MaxRtt = maxRtt;
-		}
+		if (args.Length > 0 && int.TryParse(args[0], out var lowDeviceThreshold))
+			LowDeviceThreshold = lowDeviceThreshold;
 	}
 }

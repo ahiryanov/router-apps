@@ -31,7 +31,7 @@ class Program
 		using var sigInt = PosixSignalRegistration.Create(PosixSignal.SIGINT, OnShutdown);
 
 		var pingImpl = AppConfig.IsPingIputils ? "iputils" : "busybox";
-		logger.LogInformation($"lte-reboot daemon started # interval: {DecisionInterval.TotalSeconds:F0}s # srv: {AppConfig.Srv} # ping: {pingImpl} # flags: {MptcpManager.SubflowFlags} # MaxLoss: {AppConfig.MaxLoss}, MaxRtt: {AppConfig.MaxRtt}");
+		logger.LogInformation($"lte-reboot daemon started # interval: {DecisionInterval.TotalSeconds:F0}s # srv: {AppConfig.Srv} # ping: {pingImpl} # flags: {MptcpManager.SubflowFlags} # loweDevice: {AppConfig.LowDeviceThreshold} # MaxLoss: {AppConfig.MaxLoss}, MaxRtt: {AppConfig.MaxRtt}");
 
 		while (!cts.IsCancellationRequested)
 		{
